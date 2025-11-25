@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- 主机： 127.0.0.1
--- 生成日期： 2025-11-20 13:33:54
+-- 生成日期： 2025-11-25 18:57:53
 -- 服务器版本： 10.4.32-MariaDB
 -- PHP 版本： 8.1.25
 
@@ -62,9 +62,9 @@ CREATE TABLE `items` (
 --
 
 CREATE TABLE `users` (
-  `userId` int(10) NOT NULL,
+  `userId` int(11) NOT NULL,
   `userName` varchar(20) NOT NULL,
-  `password` varchar(16) NOT NULL,
+  `password` varchar(255) NOT NULL,
   `email` varchar(50) NOT NULL,
   `registerDate` date NOT NULL,
   `role` varchar(10) NOT NULL
@@ -97,6 +97,16 @@ ALTER TABLE `users`
   ADD PRIMARY KEY (`userId`);
 
 --
+-- 在导出的表使用AUTO_INCREMENT
+--
+
+--
+-- 使用表AUTO_INCREMENT `users`
+--
+ALTER TABLE `users`
+  MODIFY `userId` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- 限制导出的表
 --
 
@@ -115,10 +125,6 @@ ALTER TABLE `users`
   ADD CONSTRAINT `FK_winnerid` FOREIGN KEY (`userId`) REFERENCES `items` (`winnerId`);
 COMMIT;
 
-
-
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-ALTER TABLE users MODIFY password VARCHAR(255) NOT NULL;
-ALTER TABLE users MODIFY userId INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
