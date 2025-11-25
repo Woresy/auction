@@ -2,10 +2,10 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- 主机： 127.0.0.1
--- 生成日期： 2025-11-25 18:57:53
--- 服务器版本： 10.4.32-MariaDB
--- PHP 版本： 8.1.25
+-- Host: 127.0.0.1
+-- Generation Time: Nov 26, 2025 at 12:03 AM
+-- Server version: 10.4.32-MariaDB
+-- PHP Version: 8.1.25
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,13 +18,16 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- 数据库： `auction_database`
+-- Database: `auction`
 --
+
+CREATE DATABASE IF NOT EXISTS `auction` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `auction`;
 
 -- --------------------------------------------------------
 
 --
--- 表的结构 `bid`
+-- Table structure for table `bid`
 --
 
 CREATE TABLE `bid` (
@@ -38,7 +41,7 @@ CREATE TABLE `bid` (
 -- --------------------------------------------------------
 
 --
--- 表的结构 `items`
+-- Table structure for table `items`
 --
 
 CREATE TABLE `items` (
@@ -58,7 +61,7 @@ CREATE TABLE `items` (
 -- --------------------------------------------------------
 
 --
--- 表的结构 `users`
+-- Table structure for table `users`
 --
 
 CREATE TABLE `users` (
@@ -71,11 +74,11 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 转储表的索引
+-- Indexes for dumped tables
 --
 
 --
--- 表的索引 `bid`
+-- Indexes for table `bid`
 --
 ALTER TABLE `bid`
   ADD PRIMARY KEY (`bidId`),
@@ -83,7 +86,7 @@ ALTER TABLE `bid`
   ADD KEY `buyerId` (`buyerId`);
 
 --
--- 表的索引 `items`
+-- Indexes for table `items`
 --
 ALTER TABLE `items`
   ADD PRIMARY KEY (`itemId`),
@@ -91,38 +94,38 @@ ALTER TABLE `items`
   ADD KEY `sellerId` (`sellerId`);
 
 --
--- 表的索引 `users`
+-- Indexes for table `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`userId`);
 
 --
--- 在导出的表使用AUTO_INCREMENT
+-- AUTO_INCREMENT for dumped tables
 --
 
 --
--- 使用表AUTO_INCREMENT `users`
+-- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `userId` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `userId` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
--- 限制导出的表
+-- Constraints for dumped tables
 --
 
 --
--- 限制表 `items`
+-- Constraints for table `bid`
+--
+ALTER TABLE `bid`
+  ADD CONSTRAINT `FK_buyerid` FOREIGN KEY (`buyerId`) REFERENCES `users` (`userId`),
+  ADD CONSTRAINT `FK_itemid` FOREIGN KEY (`itemId`) REFERENCES `items` (`itemId`);
+
+--
+-- Constraints for table `items`
 --
 ALTER TABLE `items`
-  ADD CONSTRAINT `FK_itemid` FOREIGN KEY (`itemId`) REFERENCES `bid` (`itemId`);
-
---
--- 限制表 `users`
---
-ALTER TABLE `users`
-  ADD CONSTRAINT `FK_buyerid` FOREIGN KEY (`userId`) REFERENCES `bid` (`buyerId`),
-  ADD CONSTRAINT `FK_sellerid` FOREIGN KEY (`userId`) REFERENCES `items` (`sellerId`),
-  ADD CONSTRAINT `FK_winnerid` FOREIGN KEY (`userId`) REFERENCES `items` (`winnerId`);
+  ADD CONSTRAINT `FK_sellerid` FOREIGN KEY (`sellerId`) REFERENCES `users` (`userId`),
+  ADD CONSTRAINT `FK_winnerid` FOREIGN KEY (`winnerId`) REFERENCES `users` (`userId`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
