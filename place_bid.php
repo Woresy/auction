@@ -56,7 +56,7 @@ if ($item['status'] !== 'active' && $item['status'] !== 'open') {
 }
 
 $current_price = (float)$item['current_price'];
-$min_increment = 1;  
+$min_increment = 0.01;  
 
 if ($bidAmount < $current_price + $min_increment) {
     die("Your bid must be higher than the current price.");
