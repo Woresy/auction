@@ -2,10 +2,19 @@
 // db_connect.php
 // 负责建立到 auction_database 的连接
 
-$host     = 'localhost';
-$user     = 'auction_user';       // 你在 phpMyAdmin 里创建的用户名
-$password = 'StrongPass123!';
-$dbname   = 'auction_database';
+# WRY
+// $host     = 'localhost';
+// $user     = 'auction_user';       // 你在 phpMyAdmin 里创建的用户名
+// $password = 'StrongPass123!';
+// $dbname   = 'auction_database';
+
+# GMZ
+$host = 'localhost';
+$user = 'root';
+$password = '';
+$dbname = 'auction';
+
+
 
 $connection = mysqli_connect($host, $user, $password, $dbname);
 
