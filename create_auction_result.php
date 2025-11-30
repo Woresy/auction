@@ -1,33 +1,84 @@
-<?php include_once("header.php")?>
-
-<div class="container my-5">
-
 <?php
+// create_auction_result.php
+session_start();
+include_once('db_connection.php');
 
-// This function takes the form data and adds the new auction to the database.
+// 必须先检查是否已登录且是 seller
+if (!isset($_SESSION['logged_in']) || $_SESSION['account_type'] !== 'seller') {
+    echo "<script>alert('You must be logged in as a seller to create an auction.'); 
+    window.location.href='index.php';</script>";
+    exit;
+}
 
-/* TODO #1: Connect to MySQL database (perhaps by requiring a file that
-            already does this). */
+// 获取表单字段
+$title = trim($_POST['title'] ?? '');
+$description = trim($_POST['description'] ?? '');
+$category = trim($_POST['category'] ?? '');
+$startPrice = $_POST['startprice'] ?? '';
+$endDate = $_POST['enddate'] ?? '';
 
+$sellerId = $_SESSION['user_id'];
+$startDate = date('Y-m-d H:i:s');  // 当前时间
 
-/* TODO #2: Extract form data into variables. Because the form was a 'post'
-            form, its data can be accessed via $POST['auctionTitle'], 
-            $POST['auctionDetails'], etc. Perform checking on the data to
-            make sure it can be inserted into the database. If there is an
-            issue, give some semi-helpful feedback to user. */
+// 基本验证
+if (!$title || !$description || !$category || !$startPrice || !$endDate) {
+    echo "<script>alert('Please fill in all required fields.'); 
+    window.location.href='create_auction.php';</script>";
+    exit;
+}
 
+// 安全检查：startPrice 必须是数字
+if (!is_numeric($startPrice) || $startPrice <= 0) {
+    echo "<script>alert('Start price must be a positive number.'); 
+    window.location.href='create_auction.php';</script>";
+    exit;
+}
 
-/* TODO #3: If everything looks good, make the appropriate call to insert
-            data into the database. */
-            
+// 因为 items 表结构需要 NOT NULL 的 finalPrice 和 winnerId
+$finalPrice = $startPrice;
+$winnerId = $sellerId;    // 没有出价前临时写为卖家
 
-// If all is successful, let user know.
-echo('<div class="text-center">Auction successfully created! <a href="FIXME">View your new listing.</a></div>');
+$status = 'active';       // 拍卖开始时设置为 active
 
+// 插入 SQL
+$sql = "INSERT INTO items 
+        (sellerId, title, description, category, startPrice, finalPrice, startDate, endDate, status, winnerId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+if ($stmt = mysqli_prepare($connection, $sql)) {
+
+    mysqli_stmt_bind_param(
+        $stmt, 
+        "isssiisssi",
+        $sellerId,
+        $title,
+        $description,
+        $category,
+        $startPrice,
+        $finalPrice,
+        $startDate,
+        $endDate,
+        $status,
+        $winnerId
+    );
+
+    if (mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
+        echo "<script>alert('Auction created successfully!'); 
+        window.location.href='mylistings.php';</script>";
+        exit;
+    } else {
+        $err = mysqli_error($connection);
+        echo "<script>alert('Failed to create auction. DB error: \\n$err'); 
+        window.location.href='create_auction.php';</script>";
+        exit;
+    }
+
+} else {
+    $err = mysqli_error($connection);
+    echo "<script>alert('Failed to prepare statement: \\n$err'); 
+    window.location.href='create_auction.php';</script>";
+    exit;
+}
 
 ?>
-
-</div>
-
-
-<?php include_once("footer.php")?>
