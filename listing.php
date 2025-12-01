@@ -23,10 +23,12 @@ $sql = "SELECT
           i.status,
           i.winnerId,
           i.sellerId,
+          u.userName AS winnerName,                            
           COALESCE(MAX(b.bidAmount), i.startPrice) AS current_price,
           COUNT(b.bidId) AS num_bids
         FROM items i
         LEFT JOIN bid b ON i.itemId = b.itemId
+        LEFT JOIN users u ON i.winnerId = u.userId              
         WHERE i.itemId = ?
         GROUP BY i.itemId";
 
@@ -57,10 +59,12 @@ if (isset($_GET['bid_error'])) {
 $title         = $row['title'];
 $description   = $row['description'];
 $current_price = (float)$row['current_price'];
+$min_integer_bid = floor($current_price) + 1;
 $num_bids      = (int)$row['num_bids'];
 $end_time      = new DateTime($row['endDate']);
 $status        = $row['status'];      
 $winner_id     = (int)$row['winnerId'];
+$winner_name   = $row['winnerName'] ?? null;                   
 
 $currentUserId   = $_SESSION['user_id']      ?? null;
 $currentUserType = $_SESSION['account_type'] ?? null;
@@ -79,7 +83,6 @@ if ($now < $end_time) {
   $time_to_end    = date_diff($now, $end_time);
   $time_remaining = ' (in ' . display_time_remaining($time_to_end) . ')';
 }
-
 
 $hasEndedByTime = ($now >= $end_time);
 
@@ -109,10 +112,7 @@ $watching = false;
     <h2 class="my-3"><?php echo htmlspecialchars($title); ?></h2>
   </div>
   <div class="col-sm-4 align-self-center"> <!-- Right col -->
-<?php
-
-  if (!$hasEnded):
-?>
+<?php if (!$hasEnded): ?>
     <div id="watch_nowatch" <?php if ($has_session && $watching) echo('style="display: none"');?> >
       <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToWatchlist()">+ Add to watchlist</button>
     </div>
@@ -120,7 +120,7 @@ $watching = false;
       <button type="button" class="btn btn-success btn-sm" disabled>Watching</button>
       <button type="button" class="btn btn-danger btn-sm" onclick="removeFromWatchlist()">Remove watch</button>
     </div>
-<?php endif /* Print nothing otherwise */ ?>
+<?php endif; ?>
   </div>
 </div>
 
@@ -172,18 +172,50 @@ $watching = false;
 
   </div>
 
-  <div class="col-sm-4"> <!-- Right col with bidding info -->
+  <div class="col-sm-4"> 
 
-    <p>
 <?php if ($hasEnded): ?>
-     This auction ended <?php echo(date_format($end_time, 'j M H:i')) ?>.
-     <?php if ($winner_id > 0 && $num_bids > 0): ?>
-       <br>Final price: £<?php echo number_format($row['finalPrice'] ?: $current_price, 2); ?>
-     <?php else: ?>
-       <br>No valid bids were placed.
-     <?php endif; ?>
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+
+        <div class="text-muted small">
+          Auction ended on
+        </div>
+        <div class="font-weight-semibold mb-3">
+          <?php echo date_format($end_time, 'j M Y H:i'); ?>
+        </div>
+
+        <?php if ($winner_id > 0 && $num_bids > 0): ?>
+          <div class="d-flex justify-content-between align-items-end">
+            <div>
+              <div class="text-muted small">Final price</div>
+              <div class="h4 mb-0">
+                £<?php echo number_format($row['finalPrice'] ?: $current_price, 2); ?>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-muted small">Winner</div>
+              <div class="h5 mb-0">
+                <?php echo htmlspecialchars($winner_name ?: ('User #' . $winner_id)); ?>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 text-muted small">
+            Bids placed: <strong><?php echo $num_bids; ?></strong>
+          </div>
+        <?php else: ?>
+          <div class="alert alert-secondary mb-0 mt-2">
+            No valid bids were placed for this auction.
+          </div>
+        <?php endif; ?>
+
+      </div>
+    </div>
 <?php else: ?>
-     Auction ends <?php echo(date_format($end_time, 'j M H:i')) ?></p>
+    <p>
+      Auction ends <?php echo(date_format($end_time, 'j M H:i')) ?>
+    </p>
      
     <p>
       <strong>Time remaining:</strong>
@@ -232,8 +264,8 @@ $watching = false;
             class="form-control" 
             id="bid"
             name="bidAmount"
-            min="<?php echo htmlspecialchars(number_format($current_price + 0.01, 2, '.', '')); ?>"
-            step="0.01"
+            min="<?php echo (int)$min_integer_bid; ?>" 
+            step="1"
             required
           >
         </div>
@@ -242,10 +274,8 @@ $watching = false;
         <button type="submit" class="btn btn-primary form-control mt-2">Place bid</button>
       </form>
     <?php endif; ?>
-<?php endif ?>
+<?php endif; ?>
 
-
-  
   </div> <!-- End of right col with bidding info -->
 
 </div> <!-- End of row #2 -->
@@ -292,7 +322,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function addToWatchlist(button) {
   console.log("These print statements are helpful for debugging btw");
-
 
   $.ajax('watchlist_funcs.php', {
     type: "POST",

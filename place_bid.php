@@ -66,11 +66,19 @@ if ($item['status'] !== 'active' && $item['status'] !== 'open') {
 }
 
 $current_price = (float)$item['current_price'];
-$min_increment = 0.01;  
+$bidAmountInt = (int)$bidAmount;  
 
-if ($bidAmount < $current_price + $min_increment) {
-    die("Your bid must be higher than the current price.");
+if ((float)$bidAmountInt != $bidAmount) {
+    die("Your bid must be a whole number higher than the current price.");
 }
+
+$min_integer_bid = (int)floor($current_price) + 1;
+
+if ($bidAmountInt < $min_integer_bid) {
+    die("Your bid must be at least £" . $min_integer_bid . ".");
+}
+
+$bidAmount = (float)$bidAmountInt;
 
 $sql_last = "SELECT buyerId 
              FROM bid 

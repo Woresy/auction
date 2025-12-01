@@ -89,10 +89,17 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
           </td>
           <td>
             <?php 
-              if ($row['winnerId']) {
-                  echo htmlspecialchars($row['winnerName']);
+              $winnerId = (int)$row['winnerId'];
+              $sellerId = $userId;
+
+              if(!$isEnded) {
+                  echo '-';
               } else {
-                  echo $isEnded ? 'No winner' : '-';
+                if($winnerId > 0 && $winnerId !== $sellerId) {
+                    echo htmlspecialchars($row['winnerName']);
+                } else {
+                    echo 'No winner';
+                }
               }
             ?>
           </td>
