@@ -54,7 +54,6 @@ if (isset($_GET['bid_error'])) {
   }
 }
 
-
 $title         = $row['title'];
 $description   = $row['description'];
 $current_price = (float)$row['current_price'];
@@ -81,9 +80,23 @@ if ($now < $end_time) {
   $time_remaining = ' (in ' . display_time_remaining($time_to_end) . ')';
 }
 
-$end_timestamp = $end_time->getTimestamp();
-$server_now_timestamp = $now->getTimestamp();
 
+$hasEndedByTime = ($now >= $end_time);
+
+if ($hasEndedByTime && $status !== 'closed') {
+  $update_sql  = "UPDATE items SET status = 'closed' WHERE itemId = ? AND status <> 'closed'";
+  $update_stmt = mysqli_prepare($connection, $update_sql);
+  if ($update_stmt) {
+    mysqli_stmt_bind_param($update_stmt, 'i', $item_id);
+    mysqli_stmt_execute($update_stmt);
+    $status = 'closed';
+  }
+}
+
+$hasEnded = $hasEndedByTime || ($status === 'closed');
+
+$end_timestamp        = $end_time->getTimestamp();
+$server_now_timestamp = $now->getTimestamp();
 
 $has_session = isset($_SESSION['user_id']);  
 $watching = false;                          
@@ -98,7 +111,7 @@ $watching = false;
   <div class="col-sm-4 align-self-center"> <!-- Right col -->
 <?php
 
-  if ($now < $end_time):
+  if (!$hasEnded):
 ?>
     <div id="watch_nowatch" <?php if ($has_session && $watching) echo('style="display: none"');?> >
       <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToWatchlist()">+ Add to watchlist</button>
@@ -162,16 +175,15 @@ $watching = false;
   <div class="col-sm-4"> <!-- Right col with bidding info -->
 
     <p>
-<?php if ($now > $end_time): ?>
+<?php if ($hasEnded): ?>
      This auction ended <?php echo(date_format($end_time, 'j M H:i')) ?>.
      <?php if ($winner_id > 0 && $num_bids > 0): ?>
        <br>Final price: £<?php echo number_format($row['finalPrice'] ?: $current_price, 2); ?>
-       
      <?php else: ?>
        <br>No valid bids were placed.
      <?php endif; ?>
 <?php else: ?>
-     Auction ends <?php echo(date_format($end_time, 'j M H:i') ) ?></p>
+     Auction ends <?php echo(date_format($end_time, 'j M H:i')) ?></p>
      
     <p>
       <strong>Time remaining:</strong>

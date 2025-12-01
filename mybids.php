@@ -40,6 +40,10 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
 $now = new DateTime();
+
+$update_sql  = "UPDATE items SET status = 'closed' WHERE itemId = ? AND status <> 'closed'";
+$update_stmt = mysqli_prepare($connection, $update_sql);
+
 ?>
 
 <div class="container">
@@ -60,8 +64,19 @@ $now = new DateTime();
       </thead>
       <tbody>
       <?php while ($row = mysqli_fetch_assoc($result)): 
+
         $end = new DateTime($row['endDate']);
-        $isEnded = $end < $now || $row['status'] === 'closed';
+        $hasEndedByTime = ($end <= $now);  
+
+        if ($hasEndedByTime && $row['status'] !== 'closed' && $update_stmt) {
+            mysqli_stmt_bind_param($update_stmt, 'i', $row['itemId']);
+            mysqli_stmt_execute($update_stmt);
+
+            $row['status'] = 'closed';
+        }
+
+        $isEnded = $hasEndedByTime || $row['status'] === 'closed';
+
         $won = ($isEnded && (int)$row['winnerId'] === $userId);
       ?>
         <tr>
