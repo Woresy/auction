@@ -28,11 +28,26 @@
       <div class="form-group">
         <label for="cat" class="sr-only">Search within:</label>
         <select class="form-control" id="cat">
+          <option value="" disabled selected>Choose...</option>
+          <option value="electronics">Electronics</option>
+          <option value="fashion">Fashion & Accessories</option>
+          <option value="home">Home & Kitchen</option>
+          <option value="sports">Sports & Outdoors</option>
+          <option value="toys">Toys & Games</option>
+          <option value="collectibles">Collectibles & Art</option>
+          <option value="books">Books & Media</option>
+          <option value="automotive">Automotive</option>
+          <option value="beauty">Beauty & Personal Care</option>
+          <option value="other">Other</option>
+        </select>
+
+        
+        <!-- <select class="form-control" id="cat">
           <option selected value="all">All categories</option>
           <option value="fill">Fill me in</option>
           <option value="with">with options</option>
           <option value="populated">populated from a database?</option>
-        </select>
+        </select> -->
       </div>
     </div>
     <div class="col-md-3 pr-0">
