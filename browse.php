@@ -59,6 +59,7 @@
   // Retrieve these from the URL
   if (!isset($_GET['keyword'])) {
     // TODO: Define behavior if a keyword has not been specified.
+    $keyword = "";
   }
   else {
     $keyword = $_GET['keyword'];
@@ -66,6 +67,7 @@
 
   if (!isset($_GET['cat'])) {
     // TODO: Define behavior if a category has not been specified.
+    $category = "all";
   }
   else {
     $category = $_GET['cat'];
@@ -73,6 +75,7 @@
   
   if (!isset($_GET['order_by'])) {
     // TODO: Define behavior if an order_by value has not been specified.
+    $ordering = "none";
   }
   else {
     $ordering = $_GET['order_by'];
@@ -91,9 +94,25 @@
   
   /* For the purposes of pagination, it would also be helpful to know the
      total number of results that satisfy the above query */
-  $num_results = 96; // TODO: Calculate me for real
+
+  require_once("db_connection.php");
+
+  $query = "SELECT * FROM items";
+  $items_result = mysqli_query($connection, $query);
+
+  /* TODO: Calculate total results */
+  $num_results = mysqli_num_rows($items_result);
+
+  // 👉 重置指针，让下面 while 正常工作
+  mysqli_data_seek($items_result, 0);
+
   $results_per_page = 10;
-  $max_page = ceil($num_results / $results_per_page);
+  $max_page = 1; // 不用分页
+
+
+  // $num_results = 96; // TODO: Calculate me for real
+  // $results_per_page = 10;
+  // $max_page = ceil($num_results / $results_per_page);
 ?>
 
 <div class="container mt-5">
@@ -107,24 +126,50 @@
 
 <?php
   // Demonstration of what listings will look like using dummy data.
-  $item_id = "87021";
-  $title = "Dummy title";
-  $description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum eget rutrum ipsum. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Phasellus feugiat, ipsum vel egestas elementum, sem mi vestibulum eros, et facilisis dui nisi eget metus. In non elit felis. Ut lacus sem, pulvinar ultricies pretium sed, viverra ac sapien. Vivamus condimentum aliquam rutrum. Phasellus iaculis faucibus pellentesque. Sed sem urna, maximus vitae cursus id, malesuada nec lectus. Vestibulum scelerisque vulputate elit ut laoreet. Praesent vitae orci sed metus varius posuere sagittis non mi.";
-  $current_price = 30;
-  $num_bids = 1;
-  $end_date = new DateTime('2020-09-16T11:00:00');
+  // $item_id = "87021";
+  // $title = "Dummy title";
+  // $description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum eget rutrum ipsum. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Phasellus feugiat, ipsum vel egestas elementum, sem mi vestibulum eros, et facilisis dui nisi eget metus. In non elit felis. Ut lacus sem, pulvinar ultricies pretium sed, viverra ac sapien. Vivamus condimentum aliquam rutrum. Phasellus iaculis faucibus pellentesque. Sed sem urna, maximus vitae cursus id, malesuada nec lectus. Vestibulum scelerisque vulputate elit ut laoreet. Praesent vitae orci sed metus varius posuere sagittis non mi.";
+  // $current_price = 30;
+  // $num_bids = 1;
+  // $end_date = new DateTime('2020-09-16T11:00:00');
   
-  // This uses a function defined in utilities.php
-  print_listing_li($item_id, $title, $description, $current_price, $num_bids, $end_date);
+  // // This uses a function defined in utilities.php
+  // print_listing_li($item_id, $title, $description, $current_price, $num_bids, $end_date);
   
-  $item_id = "516";
-  $title = "Different title";
-  $description = "Very short description.";
-  $current_price = 13.50;
-  $num_bids = 3;
-  $end_date = new DateTime('2020-11-02T00:00:00');
+  // $item_id = "516";
+  // $title = "Different title";
+  // $description = "Very short description.";
+  // $current_price = 13.50;
+  // $num_bids = 3;
+  // $end_date = new DateTime('2020-11-02T00:00:00');
   
-  print_listing_li($item_id, $title, $description, $current_price, $num_bids, $end_date);
+  // print_listing_li($item_id, $title, $description, $current_price, $num_bids, $end_date);
+
+  if ($num_results == 0) {
+    echo "<p>No items found.</p>";
+  } else {
+
+    // TODO: Use a while loop to print a list item for each auction listing
+    while ($row = mysqli_fetch_assoc($items_result)) {
+
+        $item_id = $row['itemId'];
+        $title = $row['title'];
+        $description = $row['description'];
+        $current_price = $row['finalPrice'];
+        $num_bids = 0;   // bidding not included in part 2
+        $end_date = new DateTime($row['endDate']);
+
+        print_listing_li(
+          $item_id,
+          $title,
+          $description,
+          $current_price,
+          $num_bids,
+          $end_date
+        );
+    }
+
+  }
 ?>
 
 </ul>
