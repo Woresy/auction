@@ -9,6 +9,11 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
+if(empty($_SESSION['account_type']) || $_SESSION['account_type'] !== 'buyer') {
+    echo "<script>alert('You must be logged in as a buyer to place a bid.');window.history.back();</script>";
+    exit;
+}
+
 $buyerId  = (int)$_SESSION['user_id'];
 $itemId   = isset($_POST['itemId'])    ? (int)$_POST['itemId']    : 0;
 $bidAmount = isset($_POST['bidAmount']) ? (float)$_POST['bidAmount'] : 0.0;
@@ -40,6 +45,11 @@ $item   = mysqli_fetch_assoc($result);
 
 if (!$item) {
     die("Item not found.");
+}
+
+if ((int)$item['sellerId'] === $buyerId) {
+    echo "<script>alert('You cannot bid on your own item.');window.history.back();</script>";
+    exit;
 }
 
 $now      = new DateTime();

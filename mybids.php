@@ -11,6 +11,11 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
+if (empty($_SESSION['account_type']) || $_SESSION['account_type'] !== 'buyer') {
+    echo "<script>alert('You must be logged in as a buyer to view your bids.'); window.location.href='index.php';</script>";
+    exit;
+}
+
 $userId = (int)$_SESSION['user_id'];
 
 $sql = "

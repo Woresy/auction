@@ -22,6 +22,7 @@ $sql = "SELECT
           i.endDate,
           i.status,
           i.winnerId,
+          i.sellerId,
           COALESCE(MAX(b.bidAmount), i.startPrice) AS current_price,
           COUNT(b.bidId) AS num_bids
         FROM items i
@@ -61,6 +62,16 @@ $num_bids      = (int)$row['num_bids'];
 $end_time      = new DateTime($row['endDate']);
 $status        = $row['status'];      
 $winner_id     = (int)$row['winnerId'];
+
+$currentUserId   = $_SESSION['user_id']      ?? null;
+$currentUserType = $_SESSION['account_type'] ?? null;
+$isBuyer         = ($currentUserId && $currentUserType === 'buyer');
+
+$seller_id = null;
+if (isset($row['sellerId'])) {
+  $seller_id = (int)$row['sellerId'];
+}
+$isOwnerOfItem = ($currentUserId && $seller_id !== null && $currentUserId === $seller_id);
 
 $now = new DateTime();
 $time_remaining = '';
@@ -166,28 +177,37 @@ $watching = false;
       </div>
     <?php endif; ?>
 
-    <!-- Bidding form -->
-    <form method="POST" action="place_bid.php">
-      <div class="input-group">
-        <div class="input-group-prepend">
-          <span class="input-group-text">£</span>
+    <?php if (!$has_session): ?>
+      <p class="text-muted">Please log in as a buyer to place a bid.</p>
+    <?php elseif (!$isBuyer): ?>
+      <p class="text-muted">Only buyer accounts can place bids.</p>
+    <?php elseif ($isOwnerOfItem): ?>
+      <p class="text-muted">You cannot place bids on your own auction.</p>
+    <?php else: ?>
+      <!-- Bidding form -->
+      <form method="POST" action="place_bid.php">
+        <div class="input-group">
+          <div class="input-group-prepend">
+            <span class="input-group-text">£</span>
+          </div>
+        
+          <input 
+            type="number" 
+            class="form-control" 
+            id="bid"
+            name="bidAmount"
+            min="<?php echo htmlspecialchars(number_format($current_price + 0.01, 2, '.', '')); ?>"
+            step="0.01"
+            required
+          >
         </div>
       
-        <input 
-          type="number" 
-          class="form-control" 
-          id="bid"
-          name="bidAmount"
-          min="<?php echo htmlspecialchars(number_format($current_price + 0.01, 2, '.', '')); ?>"
-          step="0.01"
-          required
-        >
-      </div>
-     
-      <input type="hidden" name="itemId" value="<?php echo $item_id; ?>">
-      <button type="submit" class="btn btn-primary form-control mt-2">Place bid</button>
-    </form>
+        <input type="hidden" name="itemId" value="<?php echo $item_id; ?>">
+        <button type="submit" class="btn btn-primary form-control mt-2">Place bid</button>
+      </form>
+    <?php endif; ?>
 <?php endif ?>
+
 
   
   </div> <!-- End of right col with bidding info -->
