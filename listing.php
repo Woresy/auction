@@ -81,6 +81,9 @@ if ($now < $end_time) {
   $time_remaining = ' (in ' . display_time_remaining($time_to_end) . ')';
 }
 
+$end_timestamp = $end_time->getTimestamp();
+$server_now_timestamp = $now->getTimestamp();
+
 
 $has_session = isset($_SESSION['user_id']);  
 $watching = false;                          
@@ -168,7 +171,28 @@ $watching = false;
        <br>No valid bids were placed.
      <?php endif; ?>
 <?php else: ?>
-     Auction ends <?php echo(date_format($end_time, 'j M H:i') . $time_remaining) ?></p>  
+     Auction ends <?php echo(date_format($end_time, 'j M H:i') ) ?></p>
+     
+    <p>
+      <strong>Time remaining:</strong>
+      <span id="time-remaining"
+            data-end="<?php echo $end_timestamp; ?>"
+            data-server-now="<?php echo $server_now_timestamp; ?>">
+        <?php
+          if ($now < $end_time) {
+            $total_sec = $end_time->getTimestamp() - $now->getTimestamp();
+            $d = intdiv($total_sec, 86400);
+            $h = intdiv($total_sec % 86400, 3600);
+            $m = intdiv($total_sec % 3600, 60);
+            $s = $total_sec % 60;
+            echo "{$d}d {$h}h {$m}m {$s}s";
+          } else {
+            echo "0d 0h 0m 0s";
+          }
+        ?>
+      </span>
+    </p>
+     
     <p class="lead">Current bid: £<?php echo(number_format($current_price, 2)) ?></p>
 
     <?php if (!empty($bid_error_msg)): ?>
@@ -219,6 +243,40 @@ $watching = false;
 
 <script> 
 // JavaScript functions: addToWatchlist and removeFromWatchlist.
+
+document.addEventListener('DOMContentLoaded', function () {
+  var span = document.getElementById('time-remaining');
+  if (!span) return;
+
+  var endSec       = parseInt(span.getAttribute('data-end'), 10);
+  var serverNowSec = parseInt(span.getAttribute('data-server-now'), 10);
+  if (isNaN(endSec) || isNaN(serverNowSec)) return;
+
+  var endMs       = endSec * 1000;
+  var serverNowMs = serverNowSec * 1000;
+  var offset      = Date.now() - serverNowMs;
+
+  function updateTimeRemaining() {
+    var nowMs = Date.now() - offset;
+    var diff  = endMs - nowMs;
+
+    if (diff <= 0) {
+      span.textContent = '0d 0h 0m 0s';
+      return;
+    }
+
+    var totalSec = Math.floor(diff / 1000);
+    var d = Math.floor(totalSec / 86400);
+    var h = Math.floor((totalSec % 86400) / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+
+    span.textContent = d + 'd ' + h + 'h ' + m + 'm ' + s + 's';
+  }
+
+  updateTimeRemaining();
+  setInterval(updateTimeRemaining, 1000);
+});
 
 function addToWatchlist(button) {
   console.log("These print statements are helpful for debugging btw");
