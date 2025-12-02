@@ -23,6 +23,7 @@ $sql = "SELECT
           i.status,
           i.winnerId,
           i.sellerId,
+          i.imagePath,   -- 新增
           u.userName AS winnerName,                            
           COALESCE(MAX(b.bidAmount), i.startPrice) AS current_price,
           COUNT(b.bidId) AS num_bids
@@ -58,6 +59,7 @@ if (isset($_GET['bid_error'])) {
 
 $title         = $row['title'];
 $description   = $row['description'];
+$image_path = $row['imagePath'] ?? null;    // 新增
 $current_price = (float)$row['current_price'];
 $min_integer_bid = floor($current_price) + 1;
 $num_bids      = (int)$row['num_bids'];
@@ -126,6 +128,18 @@ $watching = false;
 
 <div class="row"> <!-- Row #2 with auction description + bidding info -->
   <div class="col-sm-8"> <!-- Left col with item info -->
+
+  
+    <!-- image display -->
+    <?php if (!empty($image_path)): ?>
+      <div class="text-center mb-3">
+        <img src="<?php echo htmlspecialchars($image_path); ?>" 
+            alt="Item Image"
+            style="max-width: 350px; height: auto; border-radius: 8px;">
+      </div>
+    <?php endif; ?>
+
+
 
     <div class="itemDescription">
       <?php echo nl2br(htmlspecialchars($description)); ?>
