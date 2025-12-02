@@ -112,6 +112,58 @@ $stmt_upd = mysqli_prepare($connection, $sql_update);
 mysqli_stmt_bind_param($stmt_upd, 'dii', $bidAmount, $buyerId, $itemId);
 mysqli_stmt_execute($stmt_upd);
 
+// Notify watchers about this new bid (file-based watchlists)
+require_once 'send_mail.php';
+
+// Get previous highest bidder (before this insert). We already fetched last_bid earlier.
+$prev_highest_id = null;
+if ($last_bid && isset($last_bid['buyerId'])) {
+    $prev_highest_id = intval($last_bid['buyerId']);
+}
+
+$watchDir = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'watchlists' . DIRECTORY_SEPARATOR;
+$watchers = [];
+if (is_dir($watchDir)) {
+    foreach (glob($watchDir . '*.json') as $f) {
+        $uid = intval(basename($f, '.json'));
+        $json = file_get_contents($f);
+        $arr = json_decode($json, true);
+        if (!is_array($arr)) continue;
+        $vals = array_map('intval', $arr);
+        if (in_array($itemId, $vals)) $watchers[] = $uid;
+    }
+}
+
+if (!empty($watchers)) {
+    // fetch watcher emails/usernames in one query
+    $ids_list = implode(',', array_map('intval', $watchers));
+    $sql_u = "SELECT userId, email, userName FROM users WHERE userId IN ($ids_list)";
+    $res_u = mysqli_query($connection, $sql_u);
+    while ($watch = mysqli_fetch_assoc($res_u)) {
+        $to = $watch['email'];
+        $uname = $watch['userName'];
+        $uid = intval($watch['userId']);
+        // Skip sending to bidder themselves
+        if ($uid === $buyerId) continue;
+
+        if ($prev_highest_id && $uid === $prev_highest_id) {
+            // They were the previous highest - they've been outbid
+            $subject = "You've been outbid on an auction";
+            $body = "<p>Hi " . htmlspecialchars($uname) . ",</p>" .
+                            "<p>You have been outbid on the auction <strong>" . htmlspecialchars($item['title']) . "</strong> (Item #" . $itemId . ").<br>" .
+                            "New highest bid: £" . number_format($bidAmount,2) . "</p>" .
+                            "<p><a href='" . (isset($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : '') . "/listing.php?item_id=" . $itemId . "'>View listing</a></p>";
+            send_email($to, $subject, $body);
+        } else {
+            // Generic update to watchers
+            $subject = "New bid on a watched auction";
+            $body = "<p>Hi " . htmlspecialchars($uname) . ",</p>" .
+                            "<p>A new bid of £" . number_format($bidAmount,2) . " was placed on the auction <strong>" . htmlspecialchars($item['title']) . "</strong> (Item #" . $itemId . ").</p>" .
+                            "<p><a href='" . (isset($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : '') . "/listing.php?item_id=" . $itemId . "'>View listing</a></p>";
+            send_email($to, $subject, $body);
+        }
+    }
+}
 
 header("Location: listing.php?item_id=" . $itemId . "&bid=success");
 exit;

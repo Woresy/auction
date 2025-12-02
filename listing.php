@@ -93,6 +93,68 @@ if ($hasEndedByTime && $status !== 'closed') {
     mysqli_stmt_bind_param($update_stmt, 'i', $item_id);
     mysqli_stmt_execute($update_stmt);
     $status = 'closed';
+    // Send notifications to watchers about auction result
+    require_once 'send_mail.php';
+
+    // Get latest item info
+    $info_sql = "SELECT i.title, i.finalPrice, i.winnerId, i.sellerId, u.userName AS winnerName
+                 FROM items i
+                 LEFT JOIN users u ON i.winnerId = u.userId
+                 WHERE i.itemId = ? LIMIT 1";
+    $info_stmt = mysqli_prepare($connection, $info_sql);
+    if ($info_stmt) {
+      mysqli_stmt_bind_param($info_stmt, 'i', $item_id);
+      mysqli_stmt_execute($info_stmt);
+      $info_res = mysqli_stmt_get_result($info_stmt);
+      $info = mysqli_fetch_assoc($info_res);
+
+      // File-based watchlists: scan files to find watchers
+      $watchDir = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'watchlists' . DIRECTORY_SEPARATOR;
+      if (is_dir($watchDir)) {
+        foreach (glob($watchDir . '*.json') as $f) {
+          $uid = intval(basename($f, '.json'));
+          $json = file_get_contents($f);
+          $arr = json_decode($json, true);
+          if (!is_array($arr)) continue;
+          $vals = array_map('intval', $arr);
+          if (!in_array($item_id, $vals)) continue;
+
+          // fetch user email and name
+          $u_stmt = mysqli_prepare($connection, "SELECT email, userName FROM users WHERE userId = ? LIMIT 1");
+          if (!$u_stmt) continue;
+          mysqli_stmt_bind_param($u_stmt, 'i', $uid);
+          mysqli_stmt_execute($u_stmt);
+          $u_res = mysqli_stmt_get_result($u_stmt);
+          $w = mysqli_fetch_assoc($u_res);
+          if (!$w) continue;
+
+          $to = $w['email'];
+          $uname = $w['userName'];
+          if (!$info) continue;
+          $title_i = htmlspecialchars($info['title']);
+          $final = number_format($info['finalPrice'], 2);
+          $winnerId = intval($info['winnerId']);
+          $sellerId = intval($info['sellerId']);
+
+          if ($winnerId === $sellerId) {
+            // Unsold
+            $subject = "Auction ended - unsold: $title_i";
+            $body = "<p>Hi " . htmlspecialchars($uname) . ",</p>" .
+                    "<p>The auction <strong>$title_i</strong> (Item #$item_id) has ended with no winner (unsold).</p>" .
+                    "<p><a href='" . (isset($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : '') . "/listing.php?item_id=" . $item_id . "'>View listing</a></p>";
+            send_email($to, $subject, $body);
+          } else {
+            // Has winner
+            $winnerName = htmlspecialchars($info['winnerName'] ?: ('User #' . $winnerId));
+            $subject = "Auction ended - winner: $title_i";
+            $body = "<p>Hi " . htmlspecialchars($uname) . ",</p>" .
+                    "<p>The auction <strong>$title_i</strong> (Item #$item_id) has ended. Winner: <strong>$winnerName</strong>. Final price: £$final.</p>" .
+                    "<p><a href='" . (isset($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : '') . "/listing.php?item_id=" . $item_id . "'>View listing</a></p>";
+            send_email($to, $subject, $body);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -104,6 +166,17 @@ $server_now_timestamp = $now->getTimestamp();
 $has_session = isset($_SESSION['user_id']);  
 $watching = false;                          
 
+// If logged in, check whether the current user is watching this item (file-based)
+if ($has_session) {
+  $currUid = intval($_SESSION['user_id']);
+  $watchFile = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'watchlists' . DIRECTORY_SEPARATOR . $currUid . '.json';
+  if (file_exists($watchFile)) {
+    $json = file_get_contents($watchFile);
+    $arr = json_decode($json, true);
+    if (is_array($arr) && in_array($item_id, array_map('intval', $arr))) $watching = true;
+  }
+}
+
 ?>
 <div class="container">
 
@@ -113,13 +186,15 @@ $watching = false;
   </div>
   <div class="col-sm-4 align-self-center"> <!-- Right col -->
 <?php if (!$hasEnded): ?>
+    <?php if ($isBuyer): ?>
     <div id="watch_nowatch" <?php if ($has_session && $watching) echo('style="display: none"');?> >
       <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToWatchlist()">+ Add to watchlist</button>
     </div>
     <div id="watch_watching" <?php if (!$has_session || !$watching) echo('style="display: none"');?> >
-      <button type="button" class="btn btn-success btn-sm" disabled>Watching</button>
+      <a class="btn btn-success btn-sm" href="watchlist.php">Watching</a>
       <button type="button" class="btn btn-danger btn-sm" onclick="removeFromWatchlist()">Remove watch</button>
     </div>
+    <?php endif; ?>
 <?php endif; ?>
   </div>
 </div>
