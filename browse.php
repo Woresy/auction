@@ -176,8 +176,9 @@
 
         $image_path = $row['imagePath'];
         
-        // 调试：输出图片路径
-        echo "<!-- DEBUG: Item $item_id, Image path: " . htmlspecialchars($image_path) . " -->";
+        // 调试：输出图片路径（确保传入 htmlspecialchars() 的是字符串，避免 PHP 抛出弃用警告）
+        $safe_image_path = htmlspecialchars($image_path ?? '');
+        echo "<!-- DEBUG: Item $item_id, Image path: $safe_image_path -->";
 
         print_listing_li(
           $item_id,
