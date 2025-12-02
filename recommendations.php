@@ -3,13 +3,17 @@ include_once("header.php");
 require_once("db_connection.php");
 require_once("utilities.php");
 
-
+//--------------------------------------
+// Step 0: Session & Authentication
+//--------------------------------------
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 if (!isset($_SESSION['user_id'])) {
-    echo "<div class='container mt-4'><div class='alert alert-warning'>Please log in to see recommendations.</div></div>";
+    echo "<div class='container mt-4'>
+            <div class='alert alert-warning'>Please log in to see recommendations.</div>
+          </div>";
     include_once("footer.php");
     exit();
 }
@@ -18,131 +22,198 @@ $buyer_id = intval($_SESSION['user_id']);
 $account_type = $_SESSION['account_type'] ?? null;
 
 if ($account_type !== 'buyer') {
-    echo "<div class='container mt-4'><div class='alert alert-info'>Only buyers see recommendations.</div></div>";
+    echo "<div class='container mt-4'>
+            <div class='alert alert-info'>Only buyer accounts receive recommendations.</div>
+          </div>";
     include_once("footer.php");
     exit();
 }
 ?>
 
 <div class="container">
-<h2 class="my-3">Recommended for you</h2>
+<h2 class="my-3">Recommendations for you</h2>
 
 <?php
-
-$sql_my_items = "
+//--------------------------------------
+// Step 1: 当前用户 bid 过哪些 item
+//--------------------------------------
+$my_items_sql = "
     SELECT DISTINCT itemId
     FROM bid
     WHERE buyerId = $buyer_id
 ";
+$my_items_res = mysqli_query($connection, $my_items_sql);
 
-$res_my_items = mysqli_query($connection, $sql_my_items);
-
-$my_items = [];
-while ($row = mysqli_fetch_assoc($res_my_items)) {
-    $my_items[] = $row['itemId'];
+$my_item_ids = [];
+while ($row = mysqli_fetch_assoc($my_items_res)) {
+    $my_item_ids[] = (int)$row['itemId'];
 }
 
-if (empty($my_items)) {
-    echo "<div class='alert alert-info'>You haven't bid on anything yet. Browse items to get recommendations!</div>";
+if (empty($my_item_ids)) {
+    echo "<div class='alert alert-info'>
+            You have not placed any bids yet, so we cannot compute collaborative recommendations.
+          </div>";
     include_once("footer.php");
     exit();
 }
 
-$my_items_str = implode(",", $my_items);
+$my_item_list = implode(',', $my_item_ids);
 
-
-$sql_sim_users = "
-    SELECT DISTINCT buyerId
-    FROM bid
-    WHERE itemId IN ($my_items_str)
-      AND buyerId <> $buyer_id
-";
-
-$res_sim_users = mysqli_query($connection, $sql_sim_users);
-
-$sim_users = [];
-while ($row = mysqli_fetch_assoc($res_sim_users)) {
-    $sim_users[] = $row['buyerId'];
-}
-
-if (empty($sim_users)) {
-    echo "<div class='alert alert-info'>No similar users found yet. Try bidding on more items!</div>";
-    include_once("footer.php");
-    exit();
-}
-
-$sim_users_str = implode(",", $sim_users);
-
-
-$sql_rec_items = "
-    SELECT itemId, COUNT(*) AS score
-    FROM bid
-    WHERE buyerId IN ($sim_users_str)
-      AND itemId NOT IN ($my_items_str)
-    GROUP BY itemId
-    ORDER BY score DESC
-    LIMIT 10  -- 建议：限制推荐数量，比如只显示前10个
-";
-
-$res_rec_items = mysqli_query($connection, $sql_rec_items);
-
-$recommended_item_ids = [];
-while ($row = mysqli_fetch_assoc($res_rec_items)) {
-    $recommended_item_ids[] = $row['itemId'];
-}
-
-if (empty($recommended_item_ids)) {
-    echo "<div class='alert alert-info'>No new recommendations right now — check back later!</div>";
-    include_once("footer.php");
-    exit();
-}
-
-$recommended_str = implode(",", $recommended_item_ids);
-
-
-$sql_items = "
-    SELECT i.*, COUNT(b.itemId) as bid_count
-    FROM items i
-    LEFT JOIN bid b ON i.itemId = b.itemId
-    WHERE i.itemId IN ($recommended_str)
+//--------------------------------------
+// Step 2: 加权用户协同过滤 (只负责算出 itemId 和排序)
+//--------------------------------------
+$cf_sql = "
+    SELECT 
+        i.itemId,
+        SUM(su.overlap_count) AS sim_score
+    FROM (
+        SELECT 
+            b2.buyerId AS userId,
+            COUNT(DISTINCT b2.itemId) AS overlap_count
+        FROM bid b1
+        JOIN bid b2
+          ON b1.itemId = b2.itemId
+         AND b2.buyerId <> b1.buyerId
+        WHERE b1.buyerId = $buyer_id
+        GROUP BY b2.buyerId
+    ) AS su
+    JOIN bid b3
+      ON b3.buyerId = su.userId
+    JOIN items i
+      ON i.itemId = b3.itemId
+    WHERE i.status = 'active'
+      AND i.sellerId <> $buyer_id
+      AND i.itemId NOT IN ($my_item_list)
     GROUP BY i.itemId
-    ORDER BY FIELD(i.itemId, $recommended_str)
+    HAVING sim_score > 0
+    ORDER BY sim_score DESC, i.endDate ASC
+    LIMIT 30
 ";
 
-$res_items = mysqli_query($connection, $sql_items);
+$cf_res = mysqli_query($connection, $cf_sql);
+$has_cf_results = ($cf_res && mysqli_num_rows($cf_res) > 0);
 
-if (!$res_items) {
-    echo "<div class='alert alert-danger'>Error loading items: " . mysqli_error($connection) . "</div>";
-} else {
-    echo '<ul class="list-group">';
+//--------------------------------------
+// Step 3: 若 CF 没结果，fallback 按类别推荐（同样只拿 itemId）
+//--------------------------------------
+if (!$has_cf_results) {
 
-    while ($row = mysqli_fetch_assoc($res_items)) {
-        $item_id = $row['itemId'];
-        $title = $row['title'];
-        $description = $row['description'];
-        $current_price = $row['finalPrice'];
-        
-        $num_bids = $row['bid_count']; 
-        
-        $end_date = new DateTime($row['endDate']);
-        $image_path = $row['imagePath'];
+    $cat_sql = "
+        SELECT DISTINCT category
+        FROM items
+        WHERE itemId IN ($my_item_list)
+    ";
+    $cat_res = mysqli_query($connection, $cat_sql);
 
-        print_listing_li(
-            $item_id,
-            $title,
-            $description,
-            $current_price,
-            $num_bids,  
-            $end_date,
-            $image_path
-        );
+    $categories = [];
+    while ($row = mysqli_fetch_assoc($cat_res)) {
+        $categories[] = "'" . mysqli_real_escape_string($connection, $row['category']) . "'";
     }
 
-    echo '</ul>';
+    if (empty($categories)) {
+        echo "<div class='alert alert-info'>No recommendations available.</div>";
+        include_once("footer.php");
+        exit();
+    }
+
+    $cat_list = implode(",", $categories);
+
+    $fallback_sql = "
+        SELECT itemId
+        FROM items
+        WHERE category IN ($cat_list)
+          AND status = 'active'
+          AND sellerId <> $buyer_id
+          AND itemId NOT IN ($my_item_list)
+        ORDER BY endDate ASC
+        LIMIT 30
+    ";
+
+    $cf_res = mysqli_query($connection, $fallback_sql);
 }
 
+//--------------------------------------
+// Step 4: 从上面的结果里取出 itemId 列表
+//--------------------------------------
+if (!$cf_res || mysqli_num_rows($cf_res) == 0) {
+    echo "<p class='text-muted'>No recommendations found.</p>";
+    include_once("footer.php");
+    exit();
+}
+
+$recommended_ids = [];
+while ($row = mysqli_fetch_assoc($cf_res)) {
+    $recommended_ids[] = (int)$row['itemId'];
+}
+
+if (empty($recommended_ids)) {
+    echo "<p class='text-muted'>No recommendations found.</p>";
+    include_once("footer.php");
+    exit();
+}
+
+$id_list = implode(',', $recommended_ids);
+
+//--------------------------------------
+// Step 5: 用「和 browse.php 一模一样」的方式拿价格和 bid 数
+//--------------------------------------
+// 注意：这里刻意抄的是你 browse.php 的写法：
+//   SELECT items.*,
+//          (SELECT COUNT(*) FROM bid WHERE bid.itemId = items.itemId) AS bid_count
+//   FROM items ...
+$items_sql = "
+    SELECT 
+        items.*,
+        (SELECT COUNT(*) FROM bid WHERE bid.itemId = items.itemId) AS bid_count
+    FROM items
+    WHERE items.itemId IN ($id_list)
+    ORDER BY FIELD(items.itemId, $id_list)
+";
+
+$items_res = mysqli_query($connection, $items_sql);
+
+//--------------------------------------
+// Step 6: 展示结果（和 browse 一样）
+//--------------------------------------
+if ($has_cf_results) {
+    echo "<p class='text-muted'>
+            These items are recommended based on bids from users with similar bidding history,
+            using a weighted similarity measure.
+          </p>";
+} else {
+    echo "<p class='text-muted'>
+            These items are recommended based on categories you have previously bid on.
+          </p>";
+}
+
+echo '<ul class="list-group">';
+
+while ($item = mysqli_fetch_assoc($items_res)) {
+
+    $item_id      = (int)$item['itemId'];
+    $title        = $item['title'];
+    $description  = $item['description'];
+    $end_time     = new DateTime($item['endDate']);
+    $image_path   = $item['imagePath'] ?? null;
+
+    // 👇 完全「跟 browse 走」：
+    $current_price = (float)$item['finalPrice'];      // browse 就是用 finalPrice
+    $num_bids      = (int)$item['bid_count'];         // 和 browse 的子查询一致
+
+    print_listing_li(
+        $item_id,
+        $title,
+        $description,
+        $current_price,
+        $num_bids,
+        $end_time,
+        $image_path
+    );
+}
+
+echo '</ul>';
 ?>
 
 </div>
 
-<?php include_once("footer.php") ?>
+<?php include_once("footer.php")?>
