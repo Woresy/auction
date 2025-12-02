@@ -37,7 +37,8 @@
   // current status (session).
   if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] == true) {
     $userDisplay = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : '';
-    echo "<span class='nav-link'>Hello, $userDisplay</span>";
+    // Make the greeting a clickable link to the user's profile page
+    echo "<a class='nav-link btn btn-outline-primary mr-2' href='profile.php' role='button'>Hello, $userDisplay</a>";
     echo '<a class="nav-link" href="logout.php">Logout</a>';
   }
   else {
