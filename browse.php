@@ -1,9 +1,95 @@
-<?php include_once("header.php")?>
-<?php require("utilities.php")?>
+<?php
+include_once("header.php");
+require("utilities.php");
+
+// Initialize search history storage in session
+if (!isset($_SESSION['search_history'])) {
+  $_SESSION['search_history'] = array();
+}
+
+// Handle clearing and removing entries (no redirect to avoid header issues)
+if (isset($_GET['clear_history'])) {
+  $_SESSION['search_history'] = array();
+}
+if (isset($_GET['remove_from_history'])) {
+  $idx = intval($_GET['remove_from_history']);
+  if (isset($_SESSION['search_history'][$idx])) {
+    array_splice($_SESSION['search_history'], $idx, 1);
+  }
+}
+
+// Add current search to history (only for meaningful searches)
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && (isset($_GET['keyword']) || (isset($_GET['cat']) && $_GET['cat'] != 'all'))) {
+  $entry_keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
+  $entry_cat = isset($_GET['cat']) ? $_GET['cat'] : 'all';
+
+  // Avoid empty/no-op adds: require a keyword or a non-all category
+  if ($entry_keyword !== '' || $entry_cat !== 'all') {
+    $search_entry = array(
+      'keyword' => $entry_keyword,
+      'category' => $entry_cat,
+      'timestamp' => date('Y-m-d H:i:s'),
+      'results_count' => 0
+    );
+
+    // Prevent duplicate consecutive entries
+    $is_duplicate = false;
+    if (!empty($_SESSION['search_history'])) {
+      $first = $_SESSION['search_history'][0];
+      if ($first['keyword'] === $search_entry['keyword'] && $first['category'] === $search_entry['category']) {
+        $is_duplicate = true;
+      }
+    }
+
+    if (!$is_duplicate) {
+      array_unshift($_SESSION['search_history'], $search_entry);
+      // Limit to 10 entries
+      if (count($_SESSION['search_history']) > 10) {
+        $_SESSION['search_history'] = array_slice($_SESSION['search_history'], 0, 10);
+      }
+    }
+  }
+}
+?>
 
 <div class="container">
 
 <h2 class="my-3">Browse listings</h2>
+
+<?php if (!empty($_SESSION['search_history'])): ?>
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">Recent Searches</h5>
+    <a href="browse.php?clear_history=1" class="btn btn-sm btn-outline-danger" onclick="return confirm('Clear all search history?')">Clear All</a>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <?php foreach ($_SESSION['search_history'] as $index => $history): ?>
+      <div class="col-md-6 col-lg-4 mb-2">
+        <div class="d-flex justify-content-between align-items-center border rounded p-2 bg-light">
+          <div>
+            <?php if (!empty($history['keyword'])): ?>
+              <span class="font-weight-bold">"<?php echo htmlspecialchars($history['keyword']); ?>"</span>
+            <?php else: ?>
+              <span class="text-muted">(No keyword)</span>
+            <?php endif; ?>
+            <?php if ($history['category'] != 'all'): ?>
+              <span class="text-muted"> in </span>
+              <span class="badge badge-info"><?php echo htmlspecialchars($history['category']); ?></span>
+            <?php endif; ?>
+            <small class="d-block text-muted"><i class="fa fa-clock"></i> <?php echo date('M j, g:i a', strtotime($history['timestamp'])); ?></small>
+          </div>
+          <div class="d-flex">
+            <a href="browse.php?keyword=<?php echo urlencode($history['keyword']); ?>&cat=<?php echo urlencode($history['category']); ?>" class="btn btn-sm btn-outline-primary mr-1" title="Repeat this search"><i class="fa fa-search"></i></a>
+            <a href="browse.php?remove_from_history=<?php echo $index; ?>" class="btn btn-sm btn-outline-danger" title="Remove from history" onclick="return confirm('Remove this search from history?')"><i class="fa fa-times"></i></a>
+          </div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <div id="searchSpecs">
 <form method="get" action="browse.php">
@@ -18,6 +104,19 @@
             </span>
           </div>
           <input type="text" class="form-control border-left-0" id="keyword" name="keyword" placeholder="Search for anything" value="<?php echo isset($_GET['keyword']) ? htmlspecialchars($_GET['keyword']) : ''; ?>">
+          <?php if (!empty($_SESSION['search_history'])): ?>
+          <div class="input-group-append">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">History</button>
+            <div class="dropdown-menu dropdown-menu-right">
+              <?php foreach ($_SESSION['search_history'] as $h): ?>
+                <a class="dropdown-item" href="browse.php?keyword=<?php echo urlencode($h['keyword']); ?>&cat=<?php echo urlencode($h['category']); ?>">
+                  <?php if (!empty($h['keyword'])): ?>"<?php echo htmlspecialchars(mb_strimwidth($h['keyword'], 0, 20, '...')); ?>"<?php else: ?>(No keyword)<?php endif; ?>
+                  <?php if ($h['category'] != 'all'): ?> <small class="text-muted">[<?php echo htmlspecialchars($h['category']); ?>]</small><?php endif; ?>
+                </a>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -160,6 +259,15 @@
   }
 
   $max_page = max(1, (int)ceil($num_results / $results_per_page));
+
+  // Update most recent search history entry results_count when it matches current search
+  if (!empty($_SESSION['search_history'])) {
+    $first = &$_SESSION['search_history'][0];
+    $kw_trim = trim($keyword);
+    if ($first['keyword'] === $kw_trim && $first['category'] === $category) {
+      $first['results_count'] = (int)$num_results;
+    }
+  }
 
 
   $select_sql = "SELECT items.*, 
