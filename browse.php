@@ -32,21 +32,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && (isset($_GET['keyword']) || (isset($
       'results_count' => 0
     );
 
-    // Prevent duplicate consecutive entries
-    $is_duplicate = false;
+    // Remove any existing identical entry (keyword + category) so it moves to front, avoid duplicates
+    $new_key = trim($search_entry['keyword']);
+    $new_key_norm = function_exists('mb_strtolower') ? mb_strtolower($new_key) : strtolower($new_key);
+    $new_cat = $search_entry['category'];
+
     if (!empty($_SESSION['search_history'])) {
-      $first = $_SESSION['search_history'][0];
-      if ($first['keyword'] === $search_entry['keyword'] && $first['category'] === $search_entry['category']) {
-        $is_duplicate = true;
+      foreach ($_SESSION['search_history'] as $k => $existing) {
+        $exist_key = isset($existing['keyword']) ? trim($existing['keyword']) : '';
+        $exist_key_norm = function_exists('mb_strtolower') ? mb_strtolower($exist_key) : strtolower($exist_key);
+        $exist_cat = isset($existing['category']) ? $existing['category'] : 'all';
+        if ($exist_key_norm === $new_key_norm && $exist_cat === $new_cat) {
+          unset($_SESSION['search_history'][$k]);
+        }
       }
+      // Reindex array after unsets
+      $_SESSION['search_history'] = array_values($_SESSION['search_history']);
     }
 
-    if (!$is_duplicate) {
-      array_unshift($_SESSION['search_history'], $search_entry);
-      // Limit to 10 entries
-      if (count($_SESSION['search_history']) > 10) {
-        $_SESSION['search_history'] = array_slice($_SESSION['search_history'], 0, 10);
-      }
+    // Prepend new entry
+    array_unshift($_SESSION['search_history'], $search_entry);
+    // Limit to 10 entries
+    if (count($_SESSION['search_history']) > 10) {
+      $_SESSION['search_history'] = array_slice($_SESSION['search_history'], 0, 10);
     }
   }
 }
