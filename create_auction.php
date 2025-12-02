@@ -6,7 +6,7 @@
   <div class="card">
     <div class="card-body">
 
-      <form method="post" action="create_auction_result.php">
+      <form method="post" action="create_auction_result.php" enctype="multipart/form-data">
 
         <!-- Title -->
         <div class="form-group row">
@@ -73,6 +73,16 @@
             </small>
           </div>
         </div>
+
+        <!-- Image upload -->
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label text-right">Item Image</label>
+          <div class="col-sm-10">
+            <input type="file" class="form-control-file" name="itemImage" accept="image/*">
+            <small class="form-text text-muted">Upload an image of your item (optional).</small>
+          </div>
+        </div>
+
 
         <!-- End date -->
         <div class="form-group row">

@@ -23,7 +23,7 @@ function display_time_remaining($interval) {
 
 // print_listing_li:
 // This function prints an HTML <li> element containing an auction listing
-function print_listing_li($item_id, $title, $desc, $price, $num_bids, $end_time)
+function print_listing_li($item_id, $title, $desc, $price, $num_bids, $end_time, $image_path = null)
 {
   // Truncate long descriptions
   if (strlen($desc) > 250) {
@@ -53,10 +53,22 @@ function print_listing_li($item_id, $title, $desc, $price, $num_bids, $end_time)
   }
   
   // Print HTML
+  $image_html = '';
+  if (!empty($image_path)) {
+    $image_html = '<div class="p-2" style="flex-shrink: 0;">
+          <img src="' . htmlspecialchars($image_path, ENT_QUOTES) . '" 
+               alt="' . htmlspecialchars($title, ENT_QUOTES) . '"
+               style="width:120px; height:120px; object-fit:cover; border-radius:6px;">
+       </div>';
+  }
+  
   echo('
-    <li class="list-group-item d-flex justify-content-between">
-    <div class="p-2 mr-5"><h5><a href="listing.php?item_id=' . $item_id . '">' . $title . '</a></h5>' . $desc_shortened . '</div>
-    <div class="text-center text-nowrap"><span style="font-size: 1.5em">£' . number_format($price, 2) . '</span><br/>' . $num_bids . $bid . '<br/>' . $time_remaining . '</div>
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+    
+    ' . $image_html . '
+
+    <div class="p-2 flex-grow-1"><h5><a href="listing.php?item_id=' . $item_id . '">' . $title . '</a></h5>' . $desc_shortened . '</div>
+    <div class="text-center text-nowrap p-2" style="flex-shrink: 0;"><span style="font-size: 1.5em">£' . number_format($price, 2) . '</span><br/>' . $num_bids . $bid . '<br/>' . $time_remaining . '</div>
   </li>'
   );
 }
