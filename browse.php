@@ -126,6 +126,17 @@
     $order_sql = 'ORDER BY endDate ASC';
   }
 
+  // If ordering by date (Soonest expiry), exclude already-expired auctions
+  if ($ordering === 'date') {
+    $conditions[] = "endDate > NOW()";
+  }
+
+  // Rebuild WHERE clause in case we added the expiry condition
+  $where = '';
+  if (count($conditions) > 0) {
+    $where = 'WHERE ' . implode(' AND ', $conditions);
+  }
+
   $count_sql = "SELECT COUNT(*) AS cnt FROM items $where";
   $stmt = mysqli_prepare($connection, $count_sql);
   if ($stmt === false) {
