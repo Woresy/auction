@@ -14,7 +14,6 @@ if ($item_id <= 0) {
   exit;
 }
 
-// ★ 修改：增加卖家用户名 sellerName
 $sql = "SELECT 
           i.title,
           i.description,
@@ -26,13 +25,13 @@ $sql = "SELECT
           i.sellerId,
           i.imagePath,
           u.userName  AS winnerName,
-          s.userName  AS sellerName,   -- 新增
+          s.userName  AS sellerName,  
           COALESCE(MAX(b.bidAmount), i.startPrice) AS current_price,
           COUNT(b.bidId) AS num_bids
         FROM items i
         LEFT JOIN bid   b ON i.itemId   = b.itemId
         LEFT JOIN users u ON i.winnerId = u.userId
-        LEFT JOIN users s ON i.sellerId = s.userId   -- 新增
+        LEFT JOIN users s ON i.sellerId = s.userId   
         WHERE i.itemId = ?
         GROUP BY i.itemId";
 
@@ -71,7 +70,6 @@ $status          = $row['status'];
 $winner_id       = (int)$row['winnerId'];
 $winner_name     = $row['winnerName'] ?? null;
 
-// ★ 卖家信息（ID + 名字）
 $seller_id   = isset($row['sellerId']) ? (int)$row['sellerId'] : null;
 $seller_name = $row['sellerName'] ?? null;
 
@@ -81,7 +79,6 @@ $isBuyer         = ($currentUserId && $currentUserType === 'buyer');
 
 $isOwnerOfItem = ($currentUserId && $seller_id !== null && $currentUserId === $seller_id);
 
-// 卖家评分（基于 feedback.sellerId）
 $seller_avg_rating   = null;
 $seller_feedback_cnt = 0;
 
@@ -214,7 +211,6 @@ if ($has_session) {
     <?php if ($seller_id): ?>
       <p class="text-muted mb-1">
         <strong>Seller:</strong>
-        <!-- ★ 卖家用户名 + 链接到个人主页（假设为 profile.php） -->
         <a href="profile.php?user_id=<?php echo (int)$seller_id; ?>">
           <?php echo htmlspecialchars($seller_name ?: ('User #' . $seller_id)); ?>
         </a>
