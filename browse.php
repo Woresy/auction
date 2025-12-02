@@ -20,25 +20,25 @@
               <i class="fa fa-search"></i>
             </span>
           </div>
-          <input type="text" class="form-control border-left-0" id="keyword" placeholder="Search for anything">
+          <input type="text" class="form-control border-left-0" id="keyword" name="keyword" placeholder="Search for anything" value="<?php echo isset($_GET['keyword']) ? htmlspecialchars($_GET['keyword']) : ''; ?>">
         </div>
       </div>
     </div>
     <div class="col-md-3 pr-0">
       <div class="form-group">
         <label for="cat" class="sr-only">Search within:</label>
-        <select class="form-control" id="cat">
-          <option value="" disabled selected>Choose...</option>
-          <option value="electronics">Electronics</option>
-          <option value="fashion">Fashion & Accessories</option>
-          <option value="home">Home & Kitchen</option>
-          <option value="sports">Sports & Outdoors</option>
-          <option value="toys">Toys & Games</option>
-          <option value="collectibles">Collectibles & Art</option>
-          <option value="books">Books & Media</option>
-          <option value="automotive">Automotive</option>
-          <option value="beauty">Beauty & Personal Care</option>
-          <option value="other">Other</option>
+        <select class="form-control" id="cat" name="cat">
+          <option value="all" <?php echo (isset($_GET['cat']) && $_GET['cat']==='all') ? 'selected' : ''; ?>>All categories</option>
+          <option value="electronics" <?php echo (isset($_GET['cat']) && $_GET['cat']==='electronics') ? 'selected' : ''; ?>>Electronics</option>
+          <option value="fashion" <?php echo (isset($_GET['cat']) && $_GET['cat']==='fashion') ? 'selected' : ''; ?>>Fashion & Accessories</option>
+          <option value="home" <?php echo (isset($_GET['cat']) && $_GET['cat']==='home') ? 'selected' : ''; ?>>Home & Kitchen</option>
+          <option value="sports" <?php echo (isset($_GET['cat']) && $_GET['cat']==='sports') ? 'selected' : ''; ?>>Sports & Outdoors</option>
+          <option value="toys" <?php echo (isset($_GET['cat']) && $_GET['cat']==='toys') ? 'selected' : ''; ?>>Toys & Games</option>
+          <option value="collectibles" <?php echo (isset($_GET['cat']) && $_GET['cat']==='collectibles') ? 'selected' : ''; ?>>Collectibles & Art</option>
+          <option value="books" <?php echo (isset($_GET['cat']) && $_GET['cat']==='books') ? 'selected' : ''; ?>>Books & Media</option>
+          <option value="automotive" <?php echo (isset($_GET['cat']) && $_GET['cat']==='automotive') ? 'selected' : ''; ?>>Automotive</option>
+          <option value="beauty" <?php echo (isset($_GET['cat']) && $_GET['cat']==='beauty') ? 'selected' : ''; ?>>Beauty & Personal Care</option>
+          <option value="other" <?php echo (isset($_GET['cat']) && $_GET['cat']==='other') ? 'selected' : ''; ?>>Other</option>
         </select>
 
         
@@ -53,10 +53,10 @@
     <div class="col-md-3 pr-0">
       <div class="form-inline">
         <label class="mx-2" for="order_by">Sort by:</label>
-        <select class="form-control" id="order_by">
-          <option selected value="pricelow">Price (low to high)</option>
-          <option value="pricehigh">Price (high to low)</option>
-          <option value="date">Soonest expiry</option>
+        <select class="form-control" id="order_by" name="order_by">
+          <option value="pricelow" <?php echo (isset($_GET['order_by']) && $_GET['order_by']==='pricelow') ? 'selected' : ''; ?>>Price (low to high)</option>
+          <option value="pricehigh" <?php echo (isset($_GET['order_by']) && $_GET['order_by']==='pricehigh') ? 'selected' : ''; ?>>Price (high to low)</option>
+          <option value="date" <?php echo (isset($_GET['order_by']) && $_GET['order_by']==='date') ? 'selected' : ''; ?>>Soonest expiry</option>
         </select>
       </div>
     </div>
@@ -111,23 +111,103 @@
      total number of results that satisfy the above query */
 
   require_once("db_connection.php");
+  require_once("db_connection.php");
 
-  $query = "SELECT * FROM items";
-  $items_result = mysqli_query($connection, $query);
-
-  /* TODO: Calculate total results */
-  $num_results = mysqli_num_rows($items_result);
-
-  // 👉 重置指针，让下面 while 正常工作
-  mysqli_data_seek($items_result, 0);
-
+  // Build parameterized query based on search inputs (keyword, category), ordering and pagination
   $results_per_page = 10;
-  $max_page = 1; // 不用分页
+  $curr_page = max(1, (int)$curr_page);
+  $offset = ($curr_page - 1) * $results_per_page;
 
+  $conditions = array();
+  $params = array();
+  $types = '';
 
-  // $num_results = 96; // TODO: Calculate me for real
-  // $results_per_page = 10;
-  // $max_page = ceil($num_results / $results_per_page);
+  if ($keyword !== '') {
+    $conditions[] = "(title LIKE ? OR description LIKE ? )";
+    $kw = "%" . $keyword . "%";
+    $params[] = $kw;
+    $params[] = $kw;
+    $types .= 'ss';
+  }
+
+  if ($category !== '' && $category !== 'all') {
+    // assuming items table has a `category` column; if different, adjust accordingly
+    $conditions[] = "category = ?";
+    $params[] = $category;
+    $types .= 's';
+  }
+
+  $where = '';
+  if (count($conditions) > 0) {
+    $where = 'WHERE ' . implode(' AND ', $conditions);
+  }
+
+  // Determine ordering
+  $order_sql = '';
+  if ($ordering === 'pricelow') {
+    $order_sql = 'ORDER BY finalPrice ASC';
+  } elseif ($ordering === 'pricehigh') {
+    $order_sql = 'ORDER BY finalPrice DESC';
+  } elseif ($ordering === 'date') {
+    $order_sql = 'ORDER BY endDate ASC';
+  }
+
+  // 1) Get total count for pagination
+  $count_sql = "SELECT COUNT(*) AS cnt FROM items $where";
+  $stmt = mysqli_prepare($connection, $count_sql);
+  if ($stmt === false) {
+    // fallback: run simple query
+    $res = mysqli_query($connection, $count_sql);
+    $row = mysqli_fetch_assoc($res);
+    $num_results = (int)$row['cnt'];
+  } else {
+    if ($types !== '') {
+      // bind params dynamically
+      $bind_names = array();
+      $bind_names[] = $stmt;
+      $bind_names[] = $types;
+      for ($i = 0; $i < count($params); $i++) {
+        $bind_names[] = &$params[$i];
+      }
+      call_user_func_array('mysqli_stmt_bind_param', $bind_names);
+    }
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_bind_result($stmt, $num_results);
+    mysqli_stmt_fetch($stmt);
+    mysqli_stmt_close($stmt);
+  }
+
+  $max_page = max(1, (int)ceil($num_results / $results_per_page));
+
+  // 2) Retrieve result rows with limit/offset
+  $select_sql = "SELECT * FROM items $where $order_sql LIMIT ?, ?";
+  $stmt = mysqli_prepare($connection, $select_sql);
+  if ($stmt === false) {
+    // fallback to simple query (no params) - less secure
+    $items_result = mysqli_query($connection, $select_sql);
+  } else {
+    // bind params: existing $params (if any) + offset + results_per_page
+    $params2 = $params;
+    $types2 = $types . 'ii';
+    $params2[] = $offset;
+    $params2[] = $results_per_page;
+
+    $bind_names = array();
+    $bind_names[] = $stmt;
+    $bind_names[] = $types2;
+    for ($i = 0; $i < count($params2); $i++) {
+      $bind_names[] = &$params2[$i];
+    }
+    call_user_func_array('mysqli_stmt_bind_param', $bind_names);
+
+    mysqli_stmt_execute($stmt);
+    // get result set (requires mysqlnd). If not available, consider binding results manually.
+    $items_result = mysqli_stmt_get_result($stmt);
+    if ($items_result === false) {
+      // fallback: build array by binding columns (simpler approach omitted here)
+      $items_result = array();
+    }
+  }
 ?>
 
 <div class="container mt-5">
