@@ -14,6 +14,7 @@ if ($item_id <= 0) {
   exit;
 }
 
+// ★ 修改：增加卖家用户名 sellerName
 $sql = "SELECT 
           i.title,
           i.description,
@@ -23,13 +24,15 @@ $sql = "SELECT
           i.status,
           i.winnerId,
           i.sellerId,
-          i.imagePath,   -- 新增
-          u.userName AS winnerName,                            
+          i.imagePath,
+          u.userName  AS winnerName,
+          s.userName  AS sellerName,   -- 新增
           COALESCE(MAX(b.bidAmount), i.startPrice) AS current_price,
           COUNT(b.bidId) AS num_bids
         FROM items i
-        LEFT JOIN bid b ON i.itemId = b.itemId
-        LEFT JOIN users u ON i.winnerId = u.userId              
+        LEFT JOIN bid   b ON i.itemId   = b.itemId
+        LEFT JOIN users u ON i.winnerId = u.userId
+        LEFT JOIN users s ON i.sellerId = s.userId   -- 新增
         WHERE i.itemId = ?
         GROUP BY i.itemId";
 
@@ -57,26 +60,48 @@ if (isset($_GET['bid_error'])) {
   }
 }
 
-$title         = $row['title'];
-$description   = $row['description'];
-$image_path = $row['imagePath'] ?? null;    // 新增
-$current_price = (float)$row['current_price'];
+$title           = $row['title'];
+$description     = $row['description'];
+$image_path      = $row['imagePath'] ?? null;
+$current_price   = (float)$row['current_price'];
 $min_integer_bid = floor($current_price) + 1;
-$num_bids      = (int)$row['num_bids'];
-$end_time      = new DateTime($row['endDate']);
-$status        = $row['status'];      
-$winner_id     = (int)$row['winnerId'];
-$winner_name   = $row['winnerName'] ?? null;                   
+$num_bids        = (int)$row['num_bids'];
+$end_time        = new DateTime($row['endDate']);
+$status          = $row['status'];
+$winner_id       = (int)$row['winnerId'];
+$winner_name     = $row['winnerName'] ?? null;
+
+// ★ 卖家信息（ID + 名字）
+$seller_id   = isset($row['sellerId']) ? (int)$row['sellerId'] : null;
+$seller_name = $row['sellerName'] ?? null;
 
 $currentUserId   = $_SESSION['user_id']      ?? null;
 $currentUserType = $_SESSION['account_type'] ?? null;
 $isBuyer         = ($currentUserId && $currentUserType === 'buyer');
 
-$seller_id = null;
-if (isset($row['sellerId'])) {
-  $seller_id = (int)$row['sellerId'];
-}
 $isOwnerOfItem = ($currentUserId && $seller_id !== null && $currentUserId === $seller_id);
+
+// 卖家评分（基于 feedback.sellerId）
+$seller_avg_rating   = null;
+$seller_feedback_cnt = 0;
+
+if ($seller_id) {
+  $sql_rating = "
+      SELECT 
+          AVG(rating) AS avg_rating,
+          COUNT(*)    AS cnt
+      FROM feedback
+      WHERE sellerId = ?
+  ";
+  $stmt_rating = mysqli_prepare($connection, $sql_rating);
+  mysqli_stmt_bind_param($stmt_rating, 'i', $seller_id);
+  mysqli_stmt_execute($stmt_rating);
+  $res_rating = mysqli_stmt_get_result($stmt_rating);
+  if ($row_rating = mysqli_fetch_assoc($res_rating)) {
+      $seller_avg_rating   = $row_rating['avg_rating']; 
+      $seller_feedback_cnt = (int)$row_rating['cnt'];
+  }
+}
 
 $now = new DateTime();
 $time_remaining = '';
@@ -103,16 +128,36 @@ $hasEnded = $hasEndedByTime || ($status === 'closed');
 $end_timestamp        = $end_time->getTimestamp();
 $server_now_timestamp = $now->getTimestamp();
 
-$has_session = isset($_SESSION['user_id']);  
-$watching = false;                          
-
+$has_session = isset($_SESSION['user_id']);
+$watching    = false;
 ?>
 <div class="container">
 
 <div class="row"> <!-- Row #1 with auction title + watch button -->
   <div class="col-sm-8"> <!-- Left col -->
     <h2 class="my-3"><?php echo htmlspecialchars($title); ?></h2>
+
+    <?php if ($seller_id): ?>
+      <p class="text-muted mb-1">
+        <strong>Seller:</strong>
+        <!-- ★ 卖家用户名 + 链接到个人主页（假设为 profile.php） -->
+        <a href="profile.php?user_id=<?php echo (int)$seller_id; ?>">
+          <?php echo htmlspecialchars($seller_name ?: ('User #' . $seller_id)); ?>
+        </a>
+        &nbsp;|&nbsp;
+        <strong>Rating:</strong>
+        <?php if ($seller_feedback_cnt > 0 && $seller_avg_rating !== null): ?>
+          <span class="font-weight-bold">
+            <?php echo number_format($seller_avg_rating, 1); ?>
+          </span>/5
+          (<?php echo $seller_feedback_cnt; ?> feedback<?php echo $seller_feedback_cnt > 1 ? 's' : ''; ?>)
+        <?php else: ?>
+          <span>No feedback yet.</span>
+        <?php endif; ?>
+      </p>
+    <?php endif; ?>
   </div>
+
   <div class="col-sm-4 align-self-center"> <!-- Right col -->
 <?php if (!$hasEnded): ?>
     <div id="watch_nowatch" <?php if ($has_session && $watching) echo('style="display: none"');?> >
@@ -129,17 +174,14 @@ $watching = false;
 <div class="row"> <!-- Row #2 with auction description + bidding info -->
   <div class="col-sm-8"> <!-- Left col with item info -->
 
-  
     <!-- image display -->
     <?php if (!empty($image_path)): ?>
       <div class="text-center mb-3">
         <img src="<?php echo htmlspecialchars($image_path); ?>" 
-            alt="Item Image"
-            style="max-width: 350px; height: auto; border-radius: 8px;">
+             alt="Item Image"
+             style="max-width: 350px; height: auto; border-radius: 8px;">
       </div>
     <?php endif; ?>
-
-
 
     <div class="itemDescription">
       <?php echo nl2br(htmlspecialchars($description)); ?>
@@ -186,7 +228,7 @@ $watching = false;
 
   </div>
 
-  <div class="col-sm-4"> 
+  <div class="col-sm-4">
 
 <?php if ($hasEnded): ?>
     <div class="card shadow-sm mb-3">
@@ -345,8 +387,8 @@ function addToWatchlist(button) {
       function (obj, textstatus) {
         console.log("Success");
         var objT = obj.trim();
- 
         if (objT == "success") {
+
           $("#watch_nowatch").hide();
           $("#watch_watching").show();
         }
@@ -361,7 +403,7 @@ function addToWatchlist(button) {
       function (obj, textstatus) {
         console.log("Error");
       }
-  }); // End of AJAX call
+  });
 }
 
 function removeFromWatchlist(button) {
@@ -373,7 +415,7 @@ function removeFromWatchlist(button) {
       function (obj, textstatus) {
         console.log("Success");
         var objT = obj.trim();
- 
+        
         if (objT == "success") {
           $("#watch_watching").hide();
           $("#watch_nowatch").show();
@@ -389,6 +431,6 @@ function removeFromWatchlist(button) {
       function (obj, textstatus) {
         console.log("Error");
       }
-  }); // End of AJAX call
+  });
 }
 </script>

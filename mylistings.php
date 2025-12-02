@@ -68,8 +68,9 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
             $row['status'] = 'closed';
         }
 
-        $isEnded = ($row['status'] === 'closed');
-
+        $isEnded  = ($row['status'] === 'closed');
+        $winnerId = (int)$row['winnerId'];
+        $sellerId = $userId;
       ?>
         <tr>
           <td>
@@ -89,17 +90,14 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
           </td>
           <td>
             <?php 
-              $winnerId = (int)$row['winnerId'];
-              $sellerId = $userId;
-
-              if(!$isEnded) {
+              if (!$isEnded) {
                   echo '-';
               } else {
-                if($winnerId > 0 && $winnerId !== $sellerId) {
-                    echo htmlspecialchars($row['winnerName']);
-                } else {
-                    echo 'No winner';
-                }
+                  if ($winnerId > 0 && $winnerId !== $sellerId) {
+                      echo htmlspecialchars($row['winnerName']);
+                  } else {
+                      echo 'No winner';
+                  }
               }
             ?>
           </td>

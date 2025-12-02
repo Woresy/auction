@@ -44,6 +44,9 @@ $now = new DateTime();
 $update_sql  = "UPDATE items SET status = 'closed' WHERE itemId = ? AND status <> 'closed'";
 $update_stmt = mysqli_prepare($connection, $update_sql);
 
+$fb_check_sql  = "SELECT 1 FROM feedback WHERE itemId = ? AND buyerId = ? LIMIT 1";
+$fb_check_stmt = mysqli_prepare($connection, $fb_check_sql);
+
 ?>
 
 <div class="container">
@@ -60,13 +63,14 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
           <th>My max bid (£)</th>
           <th>Final price (£)</th>
           <th>Status</th>
+          <th>Feedback</th>
         </tr>
       </thead>
       <tbody>
-      <?php while ($row = mysqli_fetch_assoc($result)): 
+      <?php while ($row = mysqli_fetch_assoc($result)):
 
         $end = new DateTime($row['endDate']);
-        $hasEndedByTime = ($end <= $now);  
+        $hasEndedByTime = ($end <= $now);
 
         if ($hasEndedByTime && $row['status'] !== 'closed' && $update_stmt) {
             mysqli_stmt_bind_param($update_stmt, 'i', $row['itemId']);
@@ -106,6 +110,30 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
                   } else {
                       echo '<span class="badge badge-secondary">Lost</span>';
                   }
+              }
+            ?>
+          </td>
+
+          <td>
+            <?php
+              if ($won) {
+                  if ($fb_check_stmt) {
+                      mysqli_stmt_bind_param($fb_check_stmt, 'ii', $row['itemId'], $userId);
+                      mysqli_stmt_execute($fb_check_stmt);
+                      $res_fb = mysqli_stmt_get_result($fb_check_stmt);
+                      $hasFb  = mysqli_fetch_assoc($res_fb) ? true : false;
+                  } else {
+                      $hasFb = false;
+                  }
+
+                  if ($hasFb) {
+                      echo '<span class="text-muted">Given</span>';
+                  } else {
+                      echo '<a class="btn btn-sm btn-outline-primary" href="leave_feedback.php?item_id='
+                           . (int)$row['itemId'] . '&role=buyer">Leave feedback</a>';
+                  }
+              } else {
+                  echo '-';
               }
             ?>
           </td>
