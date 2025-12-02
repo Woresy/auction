@@ -20,6 +20,35 @@ $endDate = $_POST['enddate'] ?? '';
 $sellerId = $_SESSION['user_id'];
 $startDate = date('Y-m-d H:i:s');  // 当前时间
 
+// Handle image upload
+$imagePath = NULL;
+
+if (isset($_FILES['itemImage']) && $_FILES['itemImage']['error'] === UPLOAD_ERR_OK) {
+
+    $target_dir = "uploads/";
+
+    // 若 uploads 文件夹不存在则创建
+    if (!is_dir($target_dir)) {
+        mkdir($target_dir, 0777, true);
+    }
+
+    $tmp = $_FILES['itemImage']['tmp_name'];
+    $name = time() . "_" . basename($_FILES['itemImage']['name']);
+    $target_file = $target_dir . $name;
+
+    $allowed_ext = ['jpg','jpeg','png','gif'];
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+    if (in_array($ext, $allowed_ext)) {
+        if (move_uploaded_file($tmp, $target_file)) {
+            $imagePath = $target_file;
+        }
+    }
+}
+
+
+
+
 // 基本验证
 if (!$title || !$description || !$category || !$startPrice || !$endDate) {
     echo "<script>alert('Please fill in all required fields.'); 
@@ -42,14 +71,14 @@ $status = 'active';       // 拍卖开始时设置为 active
 
 // 插入 SQL
 $sql = "INSERT INTO items 
-        (sellerId, title, description, category, startPrice, finalPrice, startDate, endDate, status, winnerId)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        (sellerId, title, description, category, startPrice, finalPrice, startDate, endDate, status, winnerId, imagePath)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 if ($stmt = mysqli_prepare($connection, $sql)) {
 
     mysqli_stmt_bind_param(
         $stmt, 
-        "isssiisssi",
+        "isssiisssis",
         $sellerId,
         $title,
         $description,
@@ -59,7 +88,8 @@ if ($stmt = mysqli_prepare($connection, $sql)) {
         $startDate,
         $endDate,
         $status,
-        $winnerId
+        $winnerId,
+        $imagePath
     );
 
     if (mysqli_stmt_execute($stmt)) {

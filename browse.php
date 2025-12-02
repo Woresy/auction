@@ -174,13 +174,19 @@
         $num_bids = 0;   // bidding not included in part 2
         $end_date = new DateTime($row['endDate']);
 
+        $image_path = $row['imagePath'];
+        
+        // 调试：输出图片路径
+        echo "<!-- DEBUG: Item $item_id, Image path: " . htmlspecialchars($image_path) . " -->";
+
         print_listing_li(
           $item_id,
           $title,
           $description,
           $current_price,
           $num_bids,
-          $end_date
+          $end_date,
+          $image_path
         );
     }
 
