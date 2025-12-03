@@ -14,10 +14,12 @@ if ($item_id <= 0) {
   exit;
 }
 
+// MOD: 在 SELECT 中加入 i.reservePrice
 $sql = "SELECT 
           i.title,
           i.description,
           i.startPrice,
+          i.reservePrice,             -- MOD
           i.finalPrice,
           i.endDate,
           i.status,
@@ -62,6 +64,13 @@ if (isset($_GET['bid_error'])) {
 $title           = $row['title'];
 $description     = $row['description'];
 $image_path      = $row['imagePath'] ?? null;
+
+// MOD: 取出起拍价和保留价
+$start_price_db  = (float)$row['startPrice'];          // MOD
+$reserve_price   = isset($row['reservePrice'])         // MOD
+                   ? (int)$row['reservePrice']
+                   : 0;
+
 $current_price   = (float)$row['current_price'];
 $min_integer_bid = floor($current_price) + 1;
 $num_bids        = (int)$row['num_bids'];
@@ -110,13 +119,44 @@ if ($now < $end_time) {
 
 $hasEndedByTime = ($now >= $end_time);
 
+// MOD: 计算是否因未达保留价而流拍（仅在有出价 & 有保留价时）
+$reserve_not_met = (
+  $hasEndedByTime &&
+  $reserve_price > 0 &&
+  $num_bids > 0 &&
+  $current_price < $reserve_price
+); // MOD
+
 if ($hasEndedByTime && $status !== 'closed') {
-  $update_sql  = "UPDATE items SET status = 'closed' WHERE itemId = ? AND status <> 'closed'";
+
+  // MOD: 结束时区分是否因保留价未达而流拍
+  if ($reserve_not_met) {
+    // 流拍：winnerId 设为卖家自己，finalPrice 回退为起拍价
+    $update_sql = "
+      UPDATE items 
+      SET status = 'closed',
+          winnerId = sellerId,
+          finalPrice = startPrice
+      WHERE itemId = ? AND status <> 'closed'
+    ";
+  } else {
+    // 原逻辑：只是关闭拍卖，winnerId/finalPrice 由出价逻辑维护
+    $update_sql  = "UPDATE items SET status = 'closed' WHERE itemId = ? AND status <> 'closed'";
+  } // MOD end
+
   $update_stmt = mysqli_prepare($connection, $update_sql);
   if ($update_stmt) {
     mysqli_stmt_bind_param($update_stmt, 'i', $item_id);
     mysqli_stmt_execute($update_stmt);
     $status = 'closed';
+
+    // MOD: 同步本页使用的 winner 信息（仅影响当前页面显示）
+    if ($reserve_not_met) {
+      $winner_id   = $seller_id;
+      $winner_name = $seller_name;
+    }
+    // MOD end
+
     // Send notifications to watchers about auction result
     require_once 'send_mail.php';
 
@@ -303,6 +343,18 @@ if ($has_session) {
   <div class="col-sm-4">
 
 <?php if ($hasEnded): ?>
+
+    <?php
+    // MOD: 成交条件：winnerId 存在且不是卖家自己
+    $is_sold = (
+      $winner_id > 0 &&
+      $seller_id !== null &&
+      $winner_id !== $seller_id &&
+      ($row['finalPrice'] > 0 || $current_price > 0)
+    );
+    // MOD end
+    ?>
+
     <div class="card shadow-sm mb-3">
       <div class="card-body">
 
@@ -313,7 +365,7 @@ if ($has_session) {
           <?php echo date_format($end_time, 'j M Y H:i'); ?>
         </div>
 
-        <?php if ($winner_id > 0 && $num_bids > 0): ?>
+        <?php if ($is_sold): ?>
           <div class="d-flex justify-content-between align-items-end">
             <div>
               <div class="text-muted small">Final price</div>
@@ -333,9 +385,15 @@ if ($has_session) {
             Bids placed: <strong><?php echo $num_bids; ?></strong>
           </div>
         <?php else: ?>
+          <!-- MOD: 流拍提示（若有出价且保留价未达，说明原因；否则保留原文案语气） -->
           <div class="alert alert-secondary mb-0 mt-2">
-            No valid bids were placed for this auction.
+            <?php if ($reserve_not_met): ?>
+              Auction ended, but the reserve price was not met. The item was not sold.
+            <?php else: ?>
+              No valid bids were placed for this auction.
+            <?php endif; ?>
           </div>
+          <!-- MOD end -->
         <?php endif; ?>
 
       </div>
@@ -364,8 +422,33 @@ if ($has_session) {
         ?>
       </span>
     </p>
-     
+
     <p class="lead">Current bid: £<?php echo(number_format($current_price, 2)) ?></p>
+
+    <!-- MOD2: 正在进行的拍卖
+         - 卖家自己：看到具体 reserve price 数值
+         - 其他人：只看到 met / not met 状态 -->
+    <?php if ($reserve_price > 0): ?>
+      <?php if ($isOwnerOfItem): ?>
+        <p>
+          <strong>Reserve price:</strong>
+          £<?php echo number_format($reserve_price, 2); ?><br>
+          <span class="text-muted small">
+            Buyers only see whether the reserve price is met.
+          </span>
+        </p>
+      <?php else: ?>
+        <p>
+          <?php if ($current_price >= $reserve_price): ?>
+            <span class="text-success">Reserve price met.</span>
+          <?php else: ?>
+            <span class="text-warning">Reserve price not met.</span>
+          <?php endif; ?>
+        </p>
+      <?php endif; ?>
+    <?php endif; ?>
+    <!-- MOD2 end -->
+
 
     <?php if (!empty($bid_error_msg)): ?>
       <div class="alert alert-danger" role="alert">

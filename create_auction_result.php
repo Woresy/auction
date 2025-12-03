@@ -3,36 +3,34 @@
 session_start();
 include_once('db_connection.php');
 
-// 必须先检查是否已登录且是 seller
 if (!isset($_SESSION['logged_in']) || $_SESSION['account_type'] !== 'seller') {
     echo "<script>alert('You must be logged in as a seller to create an auction.'); 
     window.location.href='index.php';</script>";
     exit;
 }
 
-// 获取表单字段
-$title = trim($_POST['title'] ?? '');
+$title       = trim($_POST['title'] ?? '');
 $description = trim($_POST['description'] ?? '');
-$category = trim($_POST['category'] ?? '');
-$startPrice = $_POST['startprice'] ?? '';
-$endDate = $_POST['enddate'] ?? '';
+$category    = trim($_POST['category'] ?? '');
+$startPrice  = $_POST['startprice'] ?? '';
+$endDate     = $_POST['enddate'] ?? '';
 
-$sellerId = $_SESSION['user_id'];
-$startDate = date('Y-m-d H:i:s');  // 当前时间
+$reservePriceRaw = $_POST['reservePrice'] ?? '';
 
-// Handle image upload
+$sellerId  = $_SESSION['user_id'];
+$startDate = date('Y-m-d H:i:s');  
+
 $imagePath = NULL;
 
 if (isset($_FILES['itemImage']) && $_FILES['itemImage']['error'] === UPLOAD_ERR_OK) {
 
     $target_dir = "uploads/";
 
-    // 若 uploads 文件夹不存在则创建
     if (!is_dir($target_dir)) {
         mkdir($target_dir, 0777, true);
     }
 
-    $tmp = $_FILES['itemImage']['tmp_name'];
+    $tmp  = $_FILES['itemImage']['tmp_name'];
     $name = time() . "_" . basename($_FILES['itemImage']['name']);
     $target_file = $target_dir . $name;
 
@@ -46,50 +44,69 @@ if (isset($_FILES['itemImage']) && $_FILES['itemImage']['error'] === UPLOAD_ERR_
     }
 }
 
-
-
-
-// 基本验证
 if (!$title || !$description || !$category || !$startPrice || !$endDate) {
     echo "<script>alert('Please fill in all required fields.'); 
     window.location.href='create_auction.php';</script>";
     exit;
 }
 
-// 安全检查：startPrice 必须是数字
 if (!is_numeric($startPrice) || $startPrice <= 0) {
     echo "<script>alert('Start price must be a positive number.'); 
     window.location.href='create_auction.php';</script>";
     exit;
 }
 
-// 因为 items 表结构需要 NOT NULL 的 finalPrice 和 winnerId
+$startPrice = (int)$startPrice;
+
+if ($reservePriceRaw === '' || $reservePriceRaw === null) {
+    $reservePrice = 0;
+} else {
+    if (!ctype_digit((string)$reservePriceRaw)) {
+        echo "<script>alert('Reserve price must be a non-negative integer.'); 
+        window.location.href='create_auction.php';</script>";
+        exit;
+    }
+    $reservePrice = (int)$reservePriceRaw;
+    if ($reservePrice < 0) {
+        echo "<script>alert('Reserve price cannot be negative.'); 
+        window.location.href='create_auction.php';</script>";
+        exit;
+    }
+
+    if ($reservePrice > 0 && $reservePrice < $startPrice) {
+        echo "<script>alert('Reserve price cannot be lower than starting price.'); 
+        window.location.href='create_auction.php';</script>";
+        exit;
+    }
+}
+
 $finalPrice = $startPrice;
-$winnerId = $sellerId;    // 没有出价前临时写为卖家
+$winnerId   = $sellerId;    
 
-$status = 'active';       // 拍卖开始时设置为 active
+$status = 'active';       
 
-// 插入 SQL
+
 $sql = "INSERT INTO items 
-        (sellerId, title, description, category, startPrice, finalPrice, startDate, endDate, status, winnerId, imagePath)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        (sellerId, title, description, category, startPrice, reservePrice, finalPrice, startDate, endDate, status, winnerId, imagePath)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 if ($stmt = mysqli_prepare($connection, $sql)) {
 
     mysqli_stmt_bind_param(
         $stmt, 
-        "isssiisssis",
-        $sellerId,
-        $title,
-        $description,
-        $category,
-        $startPrice,
-        $finalPrice,
-        $startDate,
-        $endDate,
-        $status,
-        $winnerId,
-        $imagePath
+        "isssiiisssis",
+        $sellerId,      // i
+        $title,         // s
+        $description,   // s
+        $category,      // s
+        $startPrice,    // i
+        $reservePrice,  // i 
+        $finalPrice,    // i
+        $startDate,     // s
+        $endDate,       // s
+        $status,        // s
+        $winnerId,      // i
+        $imagePath      // s
     );
 
     if (mysqli_stmt_execute($stmt)) {

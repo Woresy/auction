@@ -82,10 +82,10 @@
               <div class="input-group-prepend">
                 <span class="input-group-text">£</span>
               </div>
-              <input type="number" class="form-control" id="auctionReservePrice" placeholder="Optional">
+              <input type="number" class="form-control" id="auctionReservePrice" name="reservePrice" min="0" placeholder="Optional">
             </div>
             <small class="form-text text-muted">
-              This reserve price field is visual only and <strong>will not be saved</strong>.
+              Optional. If the highest bid is below this price, the item will not be sold.
             </small>
           </div>
         </div>
@@ -139,6 +139,7 @@
                   <p id="previewDescription"></p>
                   <p><strong>Category:</strong> <span id="previewCategory"></span></p>
                   <p><strong>Starting price:</strong> £<span id="previewStartPrice"></span></p>
+                  <p><strong>Reserve price:</strong> £<span id="previewReservePrice"></span></p>
                   <p><strong>End date:</strong> <span id="previewEndDate"></span></p>
                 </div>
               </div>
@@ -187,12 +188,14 @@
             const categorySelect = document.getElementById('auctionCategory');
             const category = categorySelect.options[categorySelect.selectedIndex] ? categorySelect.options[categorySelect.selectedIndex].text : '';
             const startprice = document.getElementById('auctionStartPrice').value;
+            const reserveprice = document.getElementById('auctionReservePrice').value;
             const enddate = document.getElementById('auctionEndDate').value;
 
             document.getElementById('previewTitle').textContent = title || '(No title)';
             document.getElementById('previewDescription').textContent = description || '(No description)';
             document.getElementById('previewCategory').textContent = category || '(No category)';
             document.getElementById('previewStartPrice').textContent = startprice || '(Not set)';
+            document.getElementById('previewReservePrice').textContent = reserveprice || '(Not set)';
             document.getElementById('previewEndDate').textContent = formatDateTimeLocal(enddate) || '(Not set)';
 
             // image preview

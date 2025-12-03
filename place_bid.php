@@ -14,19 +14,21 @@ if(empty($_SESSION['account_type']) || $_SESSION['account_type'] !== 'buyer') {
     exit;
 }
 
-$buyerId  = (int)$_SESSION['user_id'];
-$itemId   = isset($_POST['itemId'])    ? (int)$_POST['itemId']    : 0;
+$buyerId   = (int)$_SESSION['user_id'];
+$itemId    = isset($_POST['itemId'])    ? (int)$_POST['itemId']    : 0;
 $bidAmount = isset($_POST['bidAmount']) ? (float)$_POST['bidAmount'] : 0.0;
 
 if ($itemId <= 0 || $bidAmount <= 0) {
     die("Invalid bid.");
 }
 
+// MOD: 在查询中加上 reservePrice
 $sql_item = "SELECT 
                 i.itemId,
                 i.sellerId,
                 i.title,
                 i.startPrice,
+                i.reservePrice,   -- MOD
                 i.finalPrice,
                 i.endDate,
                 i.status,
@@ -52,21 +54,23 @@ if ((int)$item['sellerId'] === $buyerId) {
     exit;
 }
 
+// MOD: 取出 reservePrice（没有或为 NULL 时当作 0）
+$reservePrice = isset($item['reservePrice']) ? (int)$item['reservePrice'] : 0;
+// MOD end
+
 $now      = new DateTime();
 $end_time = new DateTime($item['endDate']);
 
 if ($now > $end_time) {
-
     die("This auction has already ended.");
 }
 
 if ($item['status'] !== 'active' && $item['status'] !== 'open') {
-
     die("This auction is not active.");
 }
 
 $current_price = (float)$item['current_price'];
-$bidAmountInt = (int)$bidAmount;  
+$bidAmountInt  = (int)$bidAmount;  
 
 if ((float)$bidAmountInt != $bidAmount) {
     die("Your bid must be a whole number higher than the current price.");
@@ -80,7 +84,12 @@ if ($bidAmountInt < $min_integer_bid) {
 
 $bidAmount = (float)$bidAmountInt;
 
-$sql_last = "SELECT buyerId 
+// ================== 连续出价 + reserve 规则（替换原来的 same_user 检查） ==================
+// 这里不再简单禁止同一买家连续出价，而是：
+// - 若你是当前最高出价者 && reservePrice > 0 && 你当前最高价 < reservePrice → 允许继续出价
+// - 否则禁止连续出价（包括无保留价 或 已达到保留价）
+
+$sql_last = "SELECT buyerId, bidAmount     -- MOD: 多取出 bidAmount
              FROM bid 
              WHERE itemId = ?
              ORDER BY bidTime DESC, bidId DESC
@@ -93,10 +102,26 @@ $res_last = mysqli_stmt_get_result($stmt_last);
 $last_bid = mysqli_fetch_assoc($res_last);
 mysqli_stmt_close($stmt_last);
 
-if ($last_bid && (int)$last_bid['buyerId'] === $buyerId) {
-    header("Location: listing.php?item_id=" . $itemId . "&bid_error=same_user");
-    exit;
+if ($last_bid) {
+    $lastBuyerId = (int)$last_bid['buyerId'];
+    $lastBidAmt  = (float)$last_bid['bidAmount'];
+
+    if ($lastBuyerId === $buyerId) {
+        // 你是当前最高出价者
+        if ($reservePrice > 0 && $lastBidAmt < $reservePrice) {
+            // 情况 A：有保留价，且你当前最高价还没达到保留价
+            // → 允许连续出价（不拦截）
+        } else {
+            // 情况 B：
+            // - 没有设置保留价（reservePrice == 0），或者
+            // - 你当前最高出价已经 >= 保留价
+            // → 禁止连续出价，必须等其他买家出一次价
+            header("Location: listing.php?item_id=" . $itemId . "&bid_error=same_user");
+            exit;
+        }
+    }
 }
+// ================== 连续出价 + reserve 规则结束 ==================
 
 $sql_insert = "INSERT INTO bid (itemId, buyerId, bidAmount, bidTime)
                VALUES (?, ?, ?, NOW())";

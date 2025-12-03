@@ -18,6 +18,7 @@ if (empty($_SESSION['account_type']) || $_SESSION['account_type'] !== 'buyer') {
 
 $userId = (int)$_SESSION['user_id'];
 
+// MOD: 扩展查询，拿到 reservePrice、sellerId、整个拍卖的最高出价和出价次数
 $sql = "
 SELECT 
     i.itemId,
@@ -26,13 +27,22 @@ SELECT
     i.status,
     i.finalPrice,
     i.winnerId,
-    MAX(b.bidAmount) AS my_max_bid
+    i.reservePrice,  -- MOD
+    i.sellerId,      -- MOD
+    MAX(b.bidAmount) AS my_max_bid,
+    (SELECT COALESCE(MAX(b2.bidAmount), i.startPrice)
+       FROM bid b2
+       WHERE b2.itemId = i.itemId) AS highest_bid,  -- MOD
+    (SELECT COUNT(*)
+       FROM bid b3
+       WHERE b3.itemId = i.itemId) AS num_bids      -- MOD
 FROM bid b
 JOIN items i ON b.itemId = i.itemId
 WHERE b.buyerId = ?
 GROUP BY i.itemId
 ORDER BY i.endDate DESC
 ";
+// MOD end
 
 $stmt = mysqli_prepare($connection, $sql);
 mysqli_stmt_bind_param($stmt, 'i', $userId);
@@ -82,6 +92,20 @@ $fb_check_stmt = mysqli_prepare($connection, $fb_check_sql);
         $isEnded = $hasEndedByTime || $row['status'] === 'closed';
 
         $won = ($isEnded && (int)$row['winnerId'] === $userId);
+
+        // MOD: 取出当前拍卖的 reservePrice / highest_bid / num_bids
+        $reservePrice = isset($row['reservePrice']) ? (int)$row['reservePrice'] : 0;
+        $highestBid   = isset($row['highest_bid'])   ? (float)$row['highest_bid']   : 0.0;
+        $numBids      = isset($row['num_bids'])      ? (int)$row['num_bids']        : 0;
+
+        // 拍卖结束 & 有保留价 & 有出价 & 最高出价仍低于保留价 → 因保留价未达成而流拍
+        $unsoldByReserve = (
+            $isEnded &&
+            $reservePrice > 0 &&
+            $numBids > 0 &&
+            $highestBid < $reservePrice
+        );
+        // MOD end
       ?>
         <tr>
           <td>
@@ -108,7 +132,13 @@ $fb_check_stmt = mysqli_prepare($connection, $fb_check_sql);
                   if ($won) {
                       echo '<span class="badge badge-success">Won</span>';
                   } else {
-                      echo '<span class="badge badge-secondary">Lost</span>';
+                      // MOD: 如果是因为未达到保留价导致没成交，给出单独状态
+                      if ($unsoldByReserve) {
+                          echo '<span class="badge badge-warning">Not met reserve price</span>';
+                      } else {
+                          echo '<span class="badge badge-secondary">Lost</span>';
+                      }
+                      // MOD end
                   }
               }
             ?>

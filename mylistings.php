@@ -21,10 +21,15 @@ SELECT
     i.status,
     i.finalPrice,
     i.winnerId,
-    u.userName AS winnerName
+    i.reservePrice,                                   
+    u.userName AS winnerName,
+    COALESCE(MAX(b.bidAmount), i.startPrice) AS current_price, 
+    COUNT(b.bidId) AS num_bids                                   
 FROM items i
 LEFT JOIN users u ON i.winnerId = u.userId
+LEFT JOIN bid b    ON i.itemId = b.itemId                        
 WHERE i.sellerId = ?
+GROUP BY i.itemId
 ORDER BY i.endDate DESC
 ";
 
@@ -51,6 +56,7 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
         <tr>
           <th>Auction</th>
           <th>End time</th>
+          <th>Reserve Price (£)</th>
           <th>Final price (£)</th>
           <th>Winner</th>
           <th>Status</th>
@@ -71,6 +77,17 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
         $isEnded  = ($row['status'] === 'closed');
         $winnerId = (int)$row['winnerId'];
         $sellerId = $userId;
+
+        $reservePrice  = isset($row['reservePrice']) ? (int)$row['reservePrice'] : 0;
+        $currentPrice  = isset($row['current_price']) ? (float)$row['current_price'] : 0.0;
+        $numBids       = isset($row['num_bids']) ? (int)$row['num_bids'] : 0;
+
+        $unsoldByReserve = (
+            $isEnded &&
+            $reservePrice > 0 &&
+            $numBids > 0 &&
+            $currentPrice < $reservePrice
+        );
       ?>
         <tr>
           <td>
@@ -79,6 +96,17 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
             </a>
           </td>
           <td><?php echo htmlspecialchars($row['endDate']); ?></td>
+
+          <td>
+            <?php 
+              if ($reservePrice > 0) {
+                  echo number_format($reservePrice, 2);
+              } else {
+                  echo '-';
+              }
+            ?>
+          </td>
+
           <td>
             <?php 
               if ($row['finalPrice'] !== null) {
@@ -106,7 +134,11 @@ $update_stmt = mysqli_prepare($connection, $update_sql);
               if (!$isEnded) {
                   echo '<span class="badge badge-info">Ongoing</span>';
               } else {
-                  echo '<span class="badge badge-secondary">Finished</span>';
+                  if ($unsoldByReserve) {
+                      echo '<span class="badge badge-warning">Unsold</span>';
+                  } else {
+                      echo '<span class="badge badge-secondary">Finished</span>';
+                  }
               }
             ?>
           </td>
