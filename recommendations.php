@@ -84,6 +84,7 @@ $cf_sql = "
     WHERE i.status = 'active'
       AND i.sellerId <> $buyer_id
       AND i.itemId NOT IN ($my_item_list)
+         AND i.endDate > NOW()
     GROUP BY i.itemId
     HAVING sim_score > 0
     ORDER BY sim_score DESC, i.endDate ASC
@@ -125,6 +126,7 @@ if (!$has_cf_results) {
           AND status = 'active'
           AND sellerId <> $buyer_id
           AND itemId NOT IN ($my_item_list)
+                 AND endDate > NOW()
         ORDER BY endDate ASC
         LIMIT 30
     ";
@@ -167,6 +169,7 @@ $items_sql = "
         (SELECT COUNT(*) FROM bid WHERE bid.itemId = items.itemId) AS bid_count
     FROM items
     WHERE items.itemId IN ($id_list)
+       AND items.endDate > NOW()
     ORDER BY FIELD(items.itemId, $id_list)
 ";
 

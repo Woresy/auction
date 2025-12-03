@@ -8,6 +8,8 @@
 // $password = 'StrongPass123!';
 // $dbname   = 'auction_database';
 
+date_default_timezone_set('Europe/London');
+
 # GMZ
 $host = 'localhost';
 $user = 'root';
