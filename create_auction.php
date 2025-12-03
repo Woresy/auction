@@ -74,6 +74,23 @@
           </div>
         </div>
 
+        <!-- Reserve Price-->
+        <div class="form-group row">
+          <label for="auctionReservePrice" class="col-sm-2 col-form-label text-right">Reserve price</label>
+          <div class="col-sm-10">
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">£</span>
+              </div>
+              <input type="number" class="form-control" id="auctionReservePrice" placeholder="Optional">
+            </div>
+            <small class="form-text text-muted">
+              This reserve price field is visual only and <strong>will not be saved</strong>.
+            </small>
+          </div>
+        </div>
+
+
         <!-- Image upload -->
         <div class="form-group row">
           <label class="col-sm-2 col-form-label text-right">Item Image</label>
