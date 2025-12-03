@@ -7,7 +7,6 @@
 // $user     = 'auction_user';       // 你在 phpMyAdmin 里创建的用户名
 // $password = 'StrongPass123!';
 // $dbname   = 'auction_database';
-
 date_default_timezone_set('Europe/London');
 
 # GMZ
@@ -25,7 +24,7 @@ if (!$connection) {
 }
 
 // 建议设置一下字符集，保证中文正常
-mysqli_set_charset($connection, 'utf8mb4');
+//mysqli_set_charset($connection, 'utf8mb4');
 
-echo "DB connection OK<br>";
+//echo "DB connection OK<br>";
 ?>
