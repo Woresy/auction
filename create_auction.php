@@ -1,8 +1,102 @@
-<?php include_once("header.php")?>
+<?php 
+include_once("header.php");
+require_once("db_connection.php");
+
+// Get seller stats
+$seller_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+$total_listings = 0;
+$active_listings = 0;
+$completed_listings = 0;
+$recent_items = [];
+
+if ($seller_id > 0) {
+  // Count total listings
+  $count_sql = "SELECT COUNT(*) as cnt FROM items WHERE sellerId = ?";
+  $stmt = mysqli_prepare($connection, $count_sql);
+  mysqli_stmt_bind_param($stmt, 'i', $seller_id);
+  mysqli_stmt_execute($stmt);
+  $res = mysqli_stmt_get_result($stmt);
+  $row = mysqli_fetch_assoc($res);
+  $total_listings = (int)$row['cnt'];
+  mysqli_stmt_close($stmt);
+
+  // Count active listings
+  $active_sql = "SELECT COUNT(*) as cnt FROM items WHERE sellerId = ? AND status = 'active' AND endDate > NOW()";
+  $stmt = mysqli_prepare($connection, $active_sql);
+  mysqli_stmt_bind_param($stmt, 'i', $seller_id);
+  mysqli_stmt_execute($stmt);
+  $res = mysqli_stmt_get_result($stmt);
+  $row = mysqli_fetch_assoc($res);
+  $active_listings = (int)$row['cnt'];
+  mysqli_stmt_close($stmt);
+
+  // Count completed listings
+  $completed_sql = "SELECT COUNT(*) as cnt FROM items WHERE sellerId = ? AND (status != 'active' OR endDate <= NOW())";
+  $stmt = mysqli_prepare($connection, $completed_sql);
+  mysqli_stmt_bind_param($stmt, 'i', $seller_id);
+  mysqli_stmt_execute($stmt);
+  $res = mysqli_stmt_get_result($stmt);
+  $row = mysqli_fetch_assoc($res);
+  $completed_listings = (int)$row['cnt'];
+  mysqli_stmt_close($stmt);
+
+  // Get recent items (last 3)
+  $recent_sql = "SELECT itemId, title, startDate, endDate, status FROM items WHERE sellerId = ? ORDER BY startDate DESC LIMIT 3";
+  $stmt = mysqli_prepare($connection, $recent_sql);
+  mysqli_stmt_bind_param($stmt, 'i', $seller_id);
+  mysqli_stmt_execute($stmt);
+  $res = mysqli_stmt_get_result($stmt);
+  while ($row = mysqli_fetch_assoc($res)) {
+    $recent_items[] = $row;
+  }
+  mysqli_stmt_close($stmt);
+}
+?>
 <div class="container">
 
 <div style="max-width: 800px; margin: 10px auto">
   <h2 class="my-3">Create new auction</h2>
+
+  <!-- Seller Stats Card -->
+  <div class="card mb-3" style="background-color: #f8f9fa;">
+    <div class="card-body">
+      <h5 class="card-title">Your Selling Statistics</h5>
+      <div class="row">
+        <div class="col-md-4">
+          <p class="text-center"><strong style="font-size: 1.5em;"><?php echo $total_listings; ?></strong><br><small class="text-muted">Total Auctions</small></p>
+        </div>
+        <div class="col-md-4">
+          <p class="text-center"><strong style="font-size: 1.5em; color: #28a745;"><?php echo $active_listings; ?></strong><br><small class="text-muted">Active Now</small></p>
+        </div>
+        <div class="col-md-4">
+          <p class="text-center"><strong style="font-size: 1.5em; color: #6c757d;"><?php echo $completed_listings; ?></strong><br><small class="text-muted">Completed</small></p>
+        </div>
+      </div>
+
+      <?php if (!empty($recent_items)): ?>
+        <hr>
+        <p class="text-muted mb-2"><small><strong>Your Recent Auctions:</strong></small></p>
+        <ul class="list-group list-group-sm">
+          <?php foreach ($recent_items as $item): ?>
+            <li class="list-group-item" style="padding: 8px 12px;">
+              <a href="listing.php?item_id=<?php echo (int)$item['itemId']; ?>" target="_blank">
+                <?php echo htmlspecialchars($item['title'], ENT_QUOTES); ?>
+              </a>
+              <br>
+              <small class="text-muted">
+                Started: <?php echo date('Y-m-d H:i', strtotime($item['startDate'])); ?> | 
+                Ends: <?php echo date('Y-m-d H:i', strtotime($item['endDate'])); ?> |
+                <span class="badge badge-<?php echo ($item['status'] === 'active' && strtotime($item['endDate']) > time()) ? 'success' : 'secondary'; ?>">
+                  <?php echo $item['status'] === 'active' && strtotime($item['endDate']) > time() ? 'Active' : 'Ended'; ?>
+                </span>
+              </small>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-body">
 
