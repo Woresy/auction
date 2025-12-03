@@ -6,7 +6,7 @@
   <div class="card">
     <div class="card-body">
 
-      <form method="post" action="create_auction_result.php" enctype="multipart/form-data">
+      <form id="createAuctionForm" method="post" action="create_auction_result.php" enctype="multipart/form-data">
 
         <!-- Title -->
         <div class="form-group row">
@@ -95,9 +95,113 @@
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary form-control">Create Auction</button>
+        <div class="d-flex" style="gap:8px;">
+          <button type="button" id="previewBtn" class="btn btn-secondary">Preview</button>
+          <button type="submit" class="btn btn-primary flex-fill">Create Auction</button>
+        </div>
 
       </form>
+
+      <!-- Preview Modal -->
+      <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-labelledby="previewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="previewModalLabel">Auction Preview</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <img id="previewImage" src="" alt="No image" class="img-fluid img-thumbnail" style="display:none; max-height:360px; object-fit:contain;"/>
+                </div>
+                <div class="col-md-6">
+                  <h4 id="previewTitle" class="mb-2"></h4>
+                  <p id="previewDescription"></p>
+                  <p><strong>Category:</strong> <span id="previewCategory"></span></p>
+                  <p><strong>Starting price:</strong> £<span id="previewStartPrice"></span></p>
+                  <p><strong>End date:</strong> <span id="previewEndDate"></span></p>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+              <button type="button" id="confirmSubmit" class="btn btn-primary">Submit auction</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        (function(){
+          const previewBtn = document.getElementById('previewBtn');
+          const confirmSubmit = document.getElementById('confirmSubmit');
+          const form = document.getElementById('createAuctionForm');
+
+          function formatDateTimeLocal(value) {
+            if (!value) return '';
+            try {
+              const d = new Date(value);
+              if (isNaN(d)) return value;
+              return d.toLocaleString();
+            } catch (e) {
+              return value;
+            }
+          }
+
+          function showModal() {
+            const modalEl = document.getElementById('previewModal');
+            if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+              const modal = new bootstrap.Modal(modalEl);
+              modal.show();
+            } else if (window.jQuery && typeof $(modalEl).modal === 'function') {
+              $(modalEl).modal('show');
+            } else {
+              modalEl.style.display = 'block';
+            }
+          }
+
+          previewBtn.addEventListener('click', function(e){
+            // gather values
+            const title = document.getElementById('auctionTitle').value;
+            const description = document.getElementById('auctionDetails').value;
+            const categorySelect = document.getElementById('auctionCategory');
+            const category = categorySelect.options[categorySelect.selectedIndex] ? categorySelect.options[categorySelect.selectedIndex].text : '';
+            const startprice = document.getElementById('auctionStartPrice').value;
+            const enddate = document.getElementById('auctionEndDate').value;
+
+            document.getElementById('previewTitle').textContent = title || '(No title)';
+            document.getElementById('previewDescription').textContent = description || '(No description)';
+            document.getElementById('previewCategory').textContent = category || '(No category)';
+            document.getElementById('previewStartPrice').textContent = startprice || '(Not set)';
+            document.getElementById('previewEndDate').textContent = formatDateTimeLocal(enddate) || '(Not set)';
+
+            // image preview
+            const fileInput = document.querySelector('input[name="itemImage"]');
+            const img = document.getElementById('previewImage');
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+              const reader = new FileReader();
+              reader.onload = function(ev){
+                img.src = ev.target.result;
+                img.style.display = 'block';
+              }
+              reader.readAsDataURL(fileInput.files[0]);
+            } else {
+              img.style.display = 'none';
+              img.src = '';
+            }
+
+            showModal();
+          });
+
+          // when confirm submit clicked, submit the form
+          confirmSubmit.addEventListener('click', function(){
+            form.submit();
+          });
+        })();
+      </script>
 
     </div>
   </div>
