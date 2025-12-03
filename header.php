@@ -20,7 +20,7 @@
   <!-- Custom CSS file -->
   <link rel="stylesheet" href="css/custom.css">
 
-  <title>[My Auction Site] <!--CHANGEME!--></title>
+  <title>🔨 ZBuy — Smart Auctions | Bid with Ease</title>
 </head>
 
 
@@ -28,7 +28,11 @@
 
 <!-- Navbars -->
 <nav class="navbar navbar-expand-lg navbar-light bg-light mx-2">
-  <a class="navbar-brand" href="#">Site Name <!--CHANGEME!--></a>
+  <a class="navbar-brand" href="#">
+    <i class="fa fa-gavel mr-1" aria-hidden="true" style="color:#007bff;"></i>
+    <span style="font-weight:700; font-size:1.25rem; line-height:1;">ZBuy</span>
+    <small class="text-muted ml-2">Smart Auctions | Bid with Ease</small>
+  </a>
   <ul class="navbar-nav ml-auto">
     <li class="nav-item">
     

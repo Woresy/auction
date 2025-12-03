@@ -217,6 +217,44 @@ if ($hasEndedByTime && $status !== 'closed') {
             send_email($to, $subject, $body);
           }
         }
+            // --- New: send a direct email to the winner if there's a valid winner ---
+            $winnerId = intval($info['winnerId']);
+            $sellerId = intval($info['sellerId']);
+            if ($winnerId > 0 && $winnerId !== $sellerId) {
+              // fetch winner email and name
+              $w_stmt = mysqli_prepare($connection, "SELECT email, userName FROM users WHERE userId = ? LIMIT 1");
+              if ($w_stmt) {
+                mysqli_stmt_bind_param($w_stmt, 'i', $winnerId);
+                mysqli_stmt_execute($w_stmt);
+                $w_res = mysqli_stmt_get_result($w_stmt);
+                $winner_row = mysqli_fetch_assoc($w_res);
+                if ($winner_row && !empty($winner_row['email'])) {
+                  $winner_email = $winner_row['email'];
+                  $winner_userName = $winner_row['userName'] ?: ('User #' . $winnerId);
+                  $title_i = htmlspecialchars($info['title']);
+                  $final = number_format($info['finalPrice'], 2);
+                  $subject_winner = "Congratulations - You won the auction: $title_i";
+                  $body_winner = "<p>Hi " . htmlspecialchars($winner_userName) . ",</p>"
+              . "<p>Congratulations! You are the winning bidder for <strong>" . $title_i . "</strong> (Item #" . $item_id . ").<br>"
+              . "Final price: £" . $final . ".</p>"
+              . "<p>Please check your account for payment and pickup instructions, or view the listing below:<br>"
+              . "<a href='" . (isset($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : '') . "/listing.php?item_id=" . $item_id . "'>View listing</a></p>";
+
+            // Plain-text alternative
+            $alt_winner = "Hi " . $winner_userName . ",\n\n"
+              . "Congratulations! You won the auction for '" . $title_i . "' (Item #" . $item_id . ").\n"
+              . "Final price: £" . $final . "\n\n"
+              . "Please check your account for payment and pickup instructions, or view the listing: "
+              . (isset($_SERVER['HTTP_HOST']) ? 'http://' . $_SERVER['HTTP_HOST'] : '') . "/listing.php?item_id=" . $item_id . "\n";
+
+            // Send winner email (English, HTML + plain text alt)
+            send_email($winner_email, $subject_winner, $body_winner, $alt_winner);
+                }
+                mysqli_stmt_close($w_stmt);
+              }
+            }
+            // --- end winner email ---
+
       }
     }
   }
